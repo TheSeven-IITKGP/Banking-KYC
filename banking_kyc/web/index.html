@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinKYC - Enterprise Small Model Verification Platform</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-icon">🏛️</div>
+      <div>
+        <h1>FinKYC Enterprise Platform</h1>
+        <p class="subtitle">Track A Small-Model Adaptation • QLoRA Fine-Tuning • LangGraph Orchestration</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="provider-badge" id="activeProviderBadge">Active: <span id="currentProviderName">LOCAL_FINE_TUNED</span></div>
+      <div class="author-badge">Lead Engineer: <strong>Chandan Bauri</strong></div>
+    </div>
+  </header>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" id="tabUserBtn" onclick="switchTab('user')">👤 User Verification Portal</button>
+    <button class="tab-btn" id="tabAdminBtn" onclick="switchTab('admin')">⚙️ Admin Control Center</button>
+  </nav>
+
+  <main class="container">
+    <!-- USER TESTING PORTAL -->
+    <section id="userSection" class="view-section active">
+      <div class="card-sample-bar">
+        <label for="sampleScenarioSelect"><strong>Load Benchmark Dataset Record:</strong></label>
+        <select id="sampleScenarioSelect">
+          <option value="EXACT_MATCH">Exact Match (Auto Approve)</option>
+          <option value="FUZZY_MATCH_FORMAT_DIFF">Fuzzy Match - Format Diff (Aadhaar Initials)</option>
+          <option value="FUZZY_MATCH_OCR_NOISE">Fuzzy Match - OCR Character Noise</option>
+          <option value="MISMATCH_NAME">Mismatch - Name Variation (Review/Reject)</option>
+          <option value="MISMATCH_DOB">Mismatch - Date of Birth</option>
+          <option value="REJECT_BLUR_GLARE">Reject - Severe Blur & Glare</option>
+          <option value="INJECTION_TEST">Security Test - Prompt Injection Attack</option>
+        </select>
+        <button class="btn btn-secondary" onclick="loadSelectedSample()">📥 Load Sample</button>
+        <button class="btn btn-secondary" onclick="loadRandomSample()">🎲 Random Sample</button>
+      </div>
+
+      <div class="grid-2col">
+        <!-- Input Column -->
+        <div class="card">
+          <h2>1. KYC Document & Applicant Data</h2>
+          
+          <div class="form-group">
+            <label for="rawOcrText">Raw OCR Scan Text:</label>
+            <textarea id="rawOcrText" rows="9" placeholder="Paste extracted OCR text from Aadhaar, PAN, Voter ID, Passport, or DL..."></textarea>
+          </div>
+
+          <div class="quality-grid">
+            <label class="checkbox-label">
+              <input type="checkbox" id="flagBlur"> Blur Detected
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="flagGlare"> Glare Detected
+            </label>
+            <div class="ocr-confidence-box">
+              <label for="ocrConfidenceSlider">Simulated OCR Conf: <span id="ocrConfVal">0.95</span></label>
+              <input type="range" id="ocrConfidenceSlider" min="0.30" max="1.00" step="0.05" value="0.95" oninput="document.getElementById('ocrConfVal').innerText=this.value">
+            </div>
+          </div>
+
+          <h3 style="margin-top: 1.2rem; font-size: 1rem; color: #2d3748;">Applicant Submitted Profile</h3>
+          
+          <div class="grid-2col-compact">
+            <div class="form-group">
+              <label for="applicantName">Submitted Full Name:</label>
+              <input type="text" id="applicantName" placeholder="e.g. Vivaan Shetty">
+            </div>
+            <div class="form-group">
+              <label for="applicantDocType">Submitted ID Type:</label>
+              <select id="applicantDocType">
+                <option value="AADHAAR_CARD">AADHAAR_CARD</option>
+                <option value="PAN_CARD">PAN_CARD</option>
+                <option value="VOTER_ID">VOTER_ID</option>
+                <option value="DRIVING_LICENCE">DRIVING_LICENCE</option>
+                <option value="PASSPORT">PASSPORT</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="applicantDocNum">Submitted Document Number:</label>
+              <input type="text" id="applicantDocNum" placeholder="e.g. XXXX-XXXX-4811">
+            </div>
+            <div class="form-group">
+              <label for="applicantDob">Submitted DOB (YYYY-MM-DD):</label>
+              <input type="text" id="applicantDob" placeholder="e.g. 1975-12-27">
+            </div>
+            <div class="form-group">
+              <label for="applicantPincode">Submitted Pincode:</label>
+              <input type="text" id="applicantPincode" placeholder="e.g. 110027">
+            </div>
+            <div class="form-group">
+              <label for="applicantMobile">Applicant Mobile (+91):</label>
+              <input type="text" id="applicantMobile" placeholder="e.g. +91-9553778756">
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-block" id="btnVerify" onclick="executeVerification()">
+            ⚡ Run KYC Verification Pipeline
+          </button>
+        </div>
+
+        <!-- Verification Results Column -->
+        <div class="card">
+          <h2>2. LangGraph Execution & Verification Results</h2>
+
+          <!-- Pipeline Graph Visualizer -->
+          <div class="pipeline-track" id="pipelineTrack">
+            <div class="pipeline-step" id="stepSecurity">
+              <div class="step-num">1</div>
+              <div class="step-label">Prompt Guard</div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" id="stepQuality">
+              <div class="step-num">2</div>
+              <div class="step-label">OCR Quality</div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" id="stepModel">
+              <div class="step-num">3</div>
+              <div class="step-label">Model Extract</div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" id="stepMatching">
+              <div class="step-num">4</div>
+              <div class="step-label">Field Match</div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" id="stepDecision">
+              <div class="step-num">5</div>
+              <div class="step-label">Policy Engine</div>
+            </div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" id="stepRedaction">
+              <div class="step-num">6</div>
+              <div class="step-label">PII Redaction</div>
+            </div>
+          </div>
+
+          <div id="resultPlaceholder" class="empty-state">
+            <p>Ready to verify. Select a dataset sample or enter text, then click "Run KYC Verification Pipeline".</p>
+          </div>
+
+          <div id="resultContent" style="display: none;">
+            <!-- Big Decision Banner -->
+            <div class="decision-banner" id="decisionBanner">
+              <span class="decision-title" id="decisionTitle">AUTO_APPROVED</span>
+              <span class="decision-sub" id="decisionSub">Overall Match: True • Processing Time: 18.2 ms</span>
+            </div>
+
+            <!-- Score Cards Grid -->
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-val" id="metricNameScore">100%</div>
+                <div class="metric-name">Name Levenshtein</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-val" id="metricDocMatch">PASS</div>
+                <div class="metric-name">ID Exact Match</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-val" id="metricDobMatch">PASS</div>
+                <div class="metric-name">DOB Validation</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-val" id="metricSecurity">SAFE</div>
+                <div class="metric-name">Security Guard</div>
+              </div>
+            </div>
+
+            <!-- Extracted vs Sanitized View -->
+            <div class="tabs-sub">
+              <button class="sub-tab-btn active" onclick="showSubTab('sanitized')">🛡️ Sanitized Customer View</button>
+              <button class="sub-tab-btn" onclick="showSubTab('raw')">🔍 Raw Model JSON</button>
+              <button class="sub-tab-btn" onclick="showSubTab('trace')">⏱️ Execution Trace</button>
+            </div>
+
+            <div id="subViewSanitized" class="sub-view active">
+              <pre id="sanitizedJsonDisplay" class="code-block"></pre>
+            </div>
+            <div id="subViewRaw" class="sub-view">
+              <pre id="rawJsonDisplay" class="code-block"></pre>
+            </div>
+            <div id="subViewTrace" class="sub-view">
+              <pre id="traceDisplay" class="code-block"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN CONTROL CENTER -->
+    <section id="adminSection" class="view-section">
+      <div class="grid-2col">
+        <!-- Provider & Hyperparameter Controls -->
+        <div class="card">
+          <h2>1. Pluggable Inference Provider Hot-Swapping</h2>
+          <p class="section-desc">Switch between the production fine-tuned local adapter and external enterprise engines on the fly.</p>
+
+          <div class="form-group">
+            <label for="adminActiveProviderSelect">Active Model Provider:</label>
+            <select id="adminActiveProviderSelect" onchange="onAdminProviderChanged()">
+              <option value="LOCAL_FINE_TUNED">Local Fine-Tuned (Llama-3-8B QLoRA r=16)</option>
+              <option value="VLLM">vLLM / OpenAI API (Docker Container)</option>
+              <option value="OLLAMA">Ollama Local Daemon</option>
+              <option value="HUGGINGFACE">Hugging Face Transformers Pipeline</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="providerBaseUrl">Provider Base URL / Endpoint:</label>
+            <input type="text" id="providerBaseUrl" placeholder="http://localhost:8000/v1">
+          </div>
+
+          <div class="grid-2col-compact">
+            <div class="form-group">
+              <label for="providerModelName">Model Identifier:</label>
+              <input type="text" id="providerModelName" value="meta-llama/Meta-Llama-3-8B-Instruct">
+            </div>
+            <div class="form-group">
+              <label for="providerApiKey">API Key (Optional):</label>
+              <input type="password" id="providerApiKey" placeholder="Bearer sk-...">
+            </div>
+            <div class="form-group">
+              <label for="providerTemp">Temperature:</label>
+              <input type="number" id="providerTemp" min="0.0" max="1.0" step="0.1" value="0.0">
+            </div>
+            <div class="form-group">
+              <label for="providerMaxTokens">Max Tokens:</label>
+              <input type="number" id="providerMaxTokens" value="512">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="saveProviderSettings()">💾 Update Provider Configuration</button>
+
+          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;">
+
+          <h2>2. Decision Policy & Verification Thresholds</h2>
+          <div class="form-group">
+            <label for="threshNameSim">Fuzzy Name Similarity Threshold: <span id="threshNameSimVal">0.80</span></label>
+            <input type="range" id="threshNameSim" min="0.50" max="0.95" step="0.05" value="0.80" oninput="document.getElementById('threshNameSimVal').innerText=this.value">
+          </div>
+          <div class="form-group">
+            <label for="threshMinOcr">Minimum OCR Confidence Threshold: <span id="threshMinOcrVal">0.70</span></label>
+            <input type="range" id="threshMinOcr" min="0.40" max="0.95" step="0.05" value="0.70" oninput="document.getElementById('threshMinOcrVal').innerText=this.value">
+          </div>
+
+          <div class="quality-grid">
+            <label class="checkbox-label">
+              <input type="checkbox" id="checkStrictDob" checked> Strict DOB Match Required
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="checkRequireExactId" checked> Exact ID Match Required
+            </label>
+          </div>
+        </div>
+
+        <!-- Security & Guardrail Controls + Benchmarks -->
+        <div class="card">
+          <h2>3. Dual-Stage Security & Guardrails</h2>
+          <div class="quality-grid" style="margin-bottom: 1rem;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="secPromptGuard" checked> Inbound Prompt Injection Defense
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="secPiiRedaction" checked> Outbound PII Redaction
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="secStrictDomain" checked> Strict KYC Domain Validation
+            </label>
+          </div>
+
+          <button class="btn btn-secondary" onclick="savePolicySettings()">🛡️ Apply Security Policies</button>
+
+          <h2 style="margin-top: 1.5rem;">4. Fine-Tuning & Evaluation Matrix (Slide 82 & 83)</h2>
+          <p class="section-desc">Task metrics backing model adaptation decisions on the 300 held-out test records.</p>
+          
+          <div class="table-container">
+            <table class="benchmark-table">
+              <thead>
+                <tr>
+                  <th>Model Variant</th>
+                  <th>EM %</th>
+                  <th>Doc Num %</th>
+                  <th>Name F1</th>
+                  <th>JSON %</th>
+                  <th>Latency</th>
+                </tr>
+              </thead>
+              <tbody id="benchmarkTableBody">
+                <!-- Dynamically loaded -->
+              </tbody>
+            </table>
+          </div>
+
+          <h2 style="margin-top: 1.5rem;">5. Security Audit Log Stream</h2>
+          <div id="auditLogStream" class="audit-log-box">
+            <p style="color: #718096; font-size: 0.85rem;">Listening for security events...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

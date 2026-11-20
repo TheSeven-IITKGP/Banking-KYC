@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "banking-kyc"
+version = "1.0.0"
+description = "Enterprise Small-Model Adaptation and KYC Verification Platform"
+authors = [
+    {name = "chandan bauri", email = "chandanbauri441@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pydantic>=2.0.0",
+    "pandas>=2.0.0",
+    "torch>=2.0.0",
+    "transformers>=4.40.0",
+]
+
+[project.scripts]
+banking-kyc = "banking_kyc.cli:main"
