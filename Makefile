@@ -88,7 +88,11 @@ train: $(VENV)/bin/python3
 # Docker commands
 docker-build:
 	@echo "🐳 Building Docker container image finkyc-platform:1.0.0..."
-	@docker build -t finkyc-platform:1.0.0 .
+	@docker build -t finkyc-platform:1.0.0 . 2>/dev/null || \
+	 (echo "⚠️ Docker buildx permission issue detected. Retrying with legacy builder (DOCKER_BUILDKIT=0)..." && \
+	  DOCKER_BUILDKIT=0 docker build -t finkyc-platform:1.0.0 . 2>/dev/null) || \
+	 (echo "❌ Docker build failed. If you see 'permission denied' on ~/.docker/buildx, run:" && \
+	  echo "   sudo chown -R \$$(whoami) ~/.docker" && exit 1)
 
 docker-run:
 	@echo "🐳 Running Docker container on port $(PORT)..."
