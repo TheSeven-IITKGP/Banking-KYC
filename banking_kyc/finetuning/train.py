@@ -17,8 +17,8 @@ from banking_kyc.finetuning.qlora_config import QLoRAExperimentConfigs
 
 def run_training_pipeline(
     config_name: str = "config_1_balanced",
-    data_dir: str = "Banking-KYC/data/processed",
-    output_dir: str = "Banking-KYC/models/adapters",
+    data_dir: str = "data/processed",
+    output_dir: str = "models/adapters",
     dry_run: bool = True,
 ) -> Dict[str, Any]:
     """Executes or dry-runs the QLoRA fine-tuning training job."""
