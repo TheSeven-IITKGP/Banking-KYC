@@ -61,6 +61,32 @@ def cmd_list_providers(args):
         print(f"  • {p['name']}{active_mark}: Model={p['model_name']}, BaseURL={p['base_url']}")
 
 
+def cmd_rag(args):
+    import subprocess
+    if args.serve:
+        print("📚 Launching RBI KYC Regulatory RAG Streamlit app...")
+        subprocess.run([sys.executable, "-m", "streamlit", "run", "app/streamlit_app.py", "--server.port", "8501"])
+    elif args.build:
+        print("🏗️ Building RAG vector and BM25 index...")
+        from kycrag.indexer import build_corpus
+        from kycrag.models import load_manifest
+        build_corpus(load_manifest())
+    elif args.eval:
+        print("📊 Running RAG ablation benchmark across 5 retrieval configs...")
+        subprocess.run([sys.executable, "eval/run_eval.py", "--retrieval-only"])
+    elif args.ask:
+        print(f"🔎 Querying RBI KYC Directions for: {args.ask}")
+        from kycrag.cli import _assistant
+        assistant = _assistant()
+        res = assistant.ask(args.ask)
+        print(f"\n[{res.get('status', 'ANSWER').upper()}]")
+        print(res.get("answer", ""))
+        if res.get("citations"):
+            print(f"Citations: {res['citations']}")
+    else:
+        print("Use --ask 'query', --serve, --build, or --eval with the 'rag' command.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="FinKYC Production Platform CLI - Developed by Chandan Bauri")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -90,6 +116,14 @@ def main():
     # List Providers
     p_prov = subparsers.add_parser("list-providers", help="List configured providers")
     p_prov.set_defaults(func=cmd_list_providers)
+
+    # RAG Subsystem
+    p_rag = subparsers.add_parser("rag", help="RBI KYC Directions RAG commands (ask, build, serve, eval)")
+    p_rag.add_argument("--ask", help="Ask regulatory question")
+    p_rag.add_argument("--serve", action="store_true", help="Launch Streamlit RAG explorer")
+    p_rag.add_argument("--build", action="store_true", help="Build vector and BM25 index")
+    p_rag.add_argument("--eval", action="store_true", help="Run RAG retrieval ablation benchmark")
+    p_rag.set_defaults(func=cmd_rag)
 
     args = parser.parse_args()
     if hasattr(args, "func"):
