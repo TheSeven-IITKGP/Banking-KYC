@@ -2,7 +2,6 @@
 .env
 .venv/
 data/raw/
-data/processed/
 logs/
 eval/results/
 .streamlit/secrets.toml
