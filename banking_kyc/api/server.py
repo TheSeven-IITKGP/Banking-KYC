@@ -99,7 +99,11 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
 
         elif path == "/api/metrics":
             benchmark = KYCEvaluator.get_benchmark_report()
-            self._send_json(200, {"benchmark_report": benchmark})
+            four_way = KYCEvaluator.get_four_way_comparison()
+            self._send_json(200, {
+                "benchmark_report": benchmark,
+                "four_way_comparison": four_way,
+            })
 
         elif path == "/api/logs":
             logs = self.workflow.security_layer.get_audit_logs(limit=50)

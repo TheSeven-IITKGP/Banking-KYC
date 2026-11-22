@@ -158,28 +158,63 @@ async function savePolicySettings() {
   }
 }
 
+// Switch between Benchmark Tabs (4-Way vs Ablations)
+function showBenchmarkTab(tab) {
+  const isFourWay = (tab === "fourway");
+  document.getElementById("btnTabFourWay").classList.toggle("active", isFourWay);
+  document.getElementById("btnTabAblation").classList.toggle("active", !isFourWay);
+  document.getElementById("viewFourWayTable").style.display = isFourWay ? "block" : "none";
+  document.getElementById("viewAblationTable").style.display = isFourWay ? "none" : "block";
+}
+
 // Load Benchmark Metrics Table
 async function loadBenchmarkMetrics() {
   try {
     const res = await fetch("/api/metrics");
     const data = await res.json();
-    const tbody = document.getElementById("benchmarkTableBody");
-    tbody.innerHTML = "";
+    
+    // 1. Render 4-Way Comparison Setup (Base, Base+RAG, FT, FT+RAG)
+    const fourWayBody = document.getElementById("fourWayTableBody");
+    if (fourWayBody && data.four_way_comparison) {
+      fourWayBody.innerHTML = "";
+      for (const [key, row] of Object.entries(data.four_way_comparison)) {
+        const isHighlight = row.setup_highlight || key.includes("Fine-Tuned");
+        const tr = document.createElement("tr");
+        if (isHighlight) tr.className = "highlight";
+        tr.innerHTML = `
+          <td><strong>${key}</strong> <span style="display:block; font-size:0.75rem; color:#64748b;">${row.setup_name}</span></td>
+          <td><strong>${row.exact_match_pct}%</strong></td>
+          <td>${row.document_number_acc}%</td>
+          <td>${row.citation_precision_pct > 0 ? row.citation_precision_pct + '%' : 'N/A'}</td>
+          <td>${row.hallucination_rate_pct}%</td>
+          <td>${row.mean_latency_ms} ms</td>
+          <td><span style="color:#059669; font-weight:600;">★ ${row.judge_faithfulness}</span>/5</td>
+          <td><span style="background:#1e3a8a; color:#fff; padding:2px 6px; border-radius:4px; font-weight:700;">${row.judge_composite_score}</span>/10</td>
+        `;
+        fourWayBody.appendChild(tr);
+      }
+    }
 
-    const report = data.benchmark_report || {};
-    for (const [key, row] of Object.entries(report)) {
-      const isCandidate = key.includes("Config 1");
-      const tr = document.createElement("tr");
-      if (isCandidate) tr.className = "highlight";
-      tr.innerHTML = `
-        <td><strong>${key}</strong></td>
-        <td>${row.exact_match_pct}%</td>
-        <td>${row.document_number_acc}%</td>
-        <td>${row.name_f1}</td>
-        <td>${row.valid_json_pct}%</td>
-        <td>${row.mean_latency_ms} ms</td>
-      `;
-      tbody.appendChild(tr);
+    // 2. Render QLoRA Parameter Ablations Table
+    const tbody = document.getElementById("benchmarkTableBody");
+    if (tbody) {
+      tbody.innerHTML = "";
+      const report = data.benchmark_report || {};
+      for (const [key, row] of Object.entries(report)) {
+        if (key.startsWith("_")) continue;
+        const isCandidate = key.includes("Config 1");
+        const tr = document.createElement("tr");
+        if (isCandidate) tr.className = "highlight";
+        tr.innerHTML = `
+          <td><strong>${key}</strong></td>
+          <td>${row.exact_match_pct}%</td>
+          <td>${row.document_number_acc}%</td>
+          <td>${row.name_f1}</td>
+          <td>${row.valid_json_pct}%</td>
+          <td>${row.mean_latency_ms} ms</td>
+        `;
+        tbody.appendChild(tr);
+      }
     }
   } catch (err) {
     console.error("Failed to load benchmark metrics:", err);

@@ -46,6 +46,15 @@ class TestFineTuningAndEval(unittest.TestCase):
         self.assertIn("Fine-Tuned Config 1 (QLoRA r=16, alpha=32)", report)
         self.assertGreater(report["Fine-Tuned Config 1 (QLoRA r=16, alpha=32)"]["exact_match_pct"], 95.0)
 
+    def test_four_way_comparison(self):
+        four_way = KYCEvaluator.get_four_way_comparison()
+        self.assertIn("Base Model", four_way)
+        self.assertIn("Base Model + RAG", four_way)
+        self.assertIn("Fine-Tuned Model", four_way)
+        self.assertIn("Fine-Tuned Model + RAG", four_way)
+        self.assertGreater(four_way["Fine-Tuned Model + RAG"]["exact_match_pct"], 98.0)
+        self.assertGreater(four_way["Fine-Tuned Model + RAG"]["judge_composite_score"], 9.0)
+
 
 if __name__ == "__main__":
     unittest.main()

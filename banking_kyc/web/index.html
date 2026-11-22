@@ -279,10 +279,37 @@
 
           <button class="btn btn-secondary" onclick="savePolicySettings()">🛡️ Apply Security Policies</button>
 
-          <h2 style="margin-top: 1.5rem;">4. Fine-Tuning & Evaluation Matrix (Slide 82 & 83)</h2>
-          <p class="section-desc">Task metrics backing model adaptation decisions on the 300 held-out test records.</p>
+          <h2 style="margin-top: 1.5rem;">4. Capstone Benchmark & Comparison Setups (Slide 82 & 83)</h2>
+          <p class="section-desc">Comparing Base Model, Base + RAG, Fine-Tuned, and Fine-Tuned + RAG on task metrics and LLM judge.</p>
           
-          <div class="table-container">
+          <div class="tabs-sub" style="margin-bottom: 0.8rem;">
+            <button class="sub-tab-btn active" id="btnTabFourWay" onclick="showBenchmarkTab('fourway')">🏆 4-Way Setup Comparison (Slide 83)</button>
+            <button class="sub-tab-btn" id="btnTabAblation" onclick="showBenchmarkTab('ablation')">🔬 QLoRA Parameter Ablations</button>
+          </div>
+
+          <!-- 4-Way Comparison Table (Base, Base+RAG, FT, FT+RAG) -->
+          <div id="viewFourWayTable" class="table-container">
+            <table class="benchmark-table">
+              <thead>
+                <tr>
+                  <th>Experimental Setup</th>
+                  <th>EM %</th>
+                  <th>Doc ID %</th>
+                  <th>Citation %</th>
+                  <th>Halluc %</th>
+                  <th>Latency</th>
+                  <th>Judge Faith</th>
+                  <th>Judge Score</th>
+                </tr>
+              </thead>
+              <tbody id="fourWayTableBody">
+                <!-- Dynamically loaded -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- QLoRA Ablation Table -->
+          <div id="viewAblationTable" class="table-container" style="display: none;">
             <table class="benchmark-table">
               <thead>
                 <tr>
