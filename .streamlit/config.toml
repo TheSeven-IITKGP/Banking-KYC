@@ -1,0 +1,6 @@
+[server]
+address = "127.0.0.1"   # localhost only, never 0.0.0.0
+headless = true
+
+[browser]
+gatherUsageStats = false
