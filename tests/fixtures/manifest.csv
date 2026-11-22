@@ -1,0 +1,3 @@
+doc_id,title,source_url,issuer,doc_type,entity_type,version_date,status,authority,local_file,parser,downloaded_on,sha256
+NEW,Sample Directions 2025,https://example.test/new,RBI,direction,commercial_bank,2026-10-01,current,regulator,sample_direction.html,rbi_html,,
+OLD,Old Sample Direction 2016,https://example.test/old,RBI,direction,all_res,2025-08-14,superseded,regulator,old_direction.html,rbi_html,,

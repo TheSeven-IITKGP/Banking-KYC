@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>KYC rules assistant</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  .muted { color: #666; font-size: 0.9rem; }
+  textarea { width: 100%; box-sizing: border-box; padding: 0.6rem; font-size: 1rem; }
+  select, button { font-size: 0.95rem; padding: 0.4rem 0.7rem; margin-top: 0.5rem; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.6; }
+  .status { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.85rem; margin: 1rem 0 0.5rem; }
+  .status-found { background: #d7f5dd; color: #166534; }
+  .status-partial { background: #ffedd1; color: #92400e; }
+  .status-not_found, .status-refused { background: #eee; color: #444; }
+  .status-unverified { background: #fde2e2; color: #991b1b; }
+  .answer { white-space: pre-wrap; line-height: 1.5; }
+  .source { border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0.5rem 0; }
+  .source summary { cursor: pointer; font-weight: 600; }
+  .source .heading { color: #666; font-size: 0.85rem; margin: 0.3rem 0; }
+  .source pre { white-space: pre-wrap; font-family: inherit; }
+  .warn { background: #fff7cc; padding: 0.5rem 0.8rem; border-radius: 6px; margin: 0.5rem 0; }
+  .error { background: #fde2e2; color: #991b1b; padding: 0.5rem 0.8rem; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <h1>KYC rules assistant</h1>
+  <p class="muted">Ask about Indian bank KYC rules. Every answer cites the RBI paragraph it relies on.
+    Study aid over public RBI text — not compliance or legal advice. Don't enter customer details; they are
+    redacted before anything is sent.</p>
+
+  <textarea id="question" rows="3" placeholder="What are the limits on a small account?"></textarea>
+  <div>
+    <label for="config">Retrieval configuration</label><br/>
+    <select id="config"></select>
+    <button id="ask">Ask</button>
+  </div>
+
+  <div id="result"></div>
+
+<script>
+const STATUS_LABEL = {
+  found: "Answered from the corpus",
+  partial: "Partly answered — some of this isn't in the corpus",
+  not_found: "Not in the corpus",
+  refused: "Outside this assistant's scope",
+  unverified: "Citations failed verification",
+};
+
+async function loadConfigs() {
+  const select = document.getElementById("config");
+  try {
+    const res = await fetch("/api/configs");
+    const names = await res.json();
+    select.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join("");
+    select.value = names[names.length - 1];
+  } catch (e) {
+    select.innerHTML = '<option value="5_full">5_full</option>';
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function ask() {
+  const question = document.getElementById("question").value.trim();
+  const config = document.getElementById("config").value;
+  const button = document.getElementById("ask");
+  const result = document.getElementById("result");
+  if (!question) return;
+
+  button.disabled = true;
+  result.innerHTML = '<p class="muted">Searching the directions…</p>';
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, config }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      result.innerHTML = `<div class="error">${escapeHtml(data.detail || "Request failed")}</div>`;
+      return;
+    }
+    render(data);
+  } catch (e) {
+    result.innerHTML = `<div class="error">${escapeHtml(String(e))}</div>`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function render(data) {
+  const parts = [];
+  if (data.pii_found && data.pii_found.length) {
+    parts.push(`<div class="warn">Removed personal details before searching: ${escapeHtml(data.pii_found.join(", "))}.
+      Please ask about the rule, not a specific customer.</div>`);
+  }
+  const label = STATUS_LABEL[data.status] || data.status;
+  parts.push(`<div class="status status-${data.status}">${escapeHtml(label)}</div>`);
+  parts.push(`<div class="answer">${escapeHtml(data.answer || "")}</div>`);
+  if (data.conflicts) {
+    parts.push(`<div class="warn">Source conflict: ${escapeHtml(data.conflicts)}</div>`);
+  }
+
+  const hitsById = Object.fromEntries((data.hits || []).map(h => [h.chunk_id, h]));
+  if (data.citations && data.citations.length) {
+    parts.push("<h3>Sources cited</h3>");
+    for (const cid of data.citations) {
+      const h = hitsById[cid];
+      if (!h) continue;
+      let tag = h.status === "superseded" ? " · superseded" : "";
+      tag += h.authority === "internal" ? " · bank policy" : "";
+      parts.push(`<details class="source"><summary>${escapeHtml(h.doc_id)}, para ${escapeHtml(h.para_ref)}${tag}</summary>
+        <div class="heading">${escapeHtml(h.heading_path || "")}</div>
+        <pre>${escapeHtml(h.text || "")}</pre></details>`);
+    }
+  }
+
+  if (data.hits && data.hits.length) {
+    const debugRows = data.hits.map(h => `${h.chunk_id} · ${h.via} · score ${h.score}`).join("<br/>");
+    parts.push(`<details><summary>All retrieved passages (debug)</summary><p class="muted">${debugRows}</p></details>`);
+  }
+
+  parts.push(`<p class="muted">Config ${escapeHtml(data.config)} · corpus ${escapeHtml(data.corpus_version)}</p>`);
+  document.getElementById("result").innerHTML = parts.join("\n");
+}
+
+document.getElementById("ask").addEventListener("click", ask);
+document.getElementById("question").addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask();
+});
+
+loadConfigs();
+</script>
+</body>
+</html>

@@ -1,122 +1,108 @@
-# FinKYC: Enterprise Small-Model KYC Verification Platform
+# FinKYC: Unified Enterprise Small-Model Adaptation & RBI Regulatory RAG Platform
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Track](https://img.shields.io/badge/Capstone-Track%20A%20Model%20Side-purple.svg)]()
 [![Lead Engineer](https://img.shields.io/badge/Author-Chandan%20Bauri-orange.svg)](mailto:chandanbauri441@gmail.com)
 
-**FinKYC** is a production-grade identity verification and document extraction platform adapting small open 7-8B instruction models (Llama-3, Qwen-2.5, Mistral) to the Indian Banking KYC domain.
+**FinKYC** is a unified, production-grade enterprise platform combining:
+1. **Model-Side Adaptation (Track A)**: Adapts small open 7–8B models (Llama-3, Qwen-2.5, Mistral) via QLoRA for noisy OCR document extraction and verification across Indian identity documents (Aadhaar, PAN, Voter ID, Driving Licence, Passport).
+2. **RBI Regulatory RAG Engine**: Retrieval-Augmented Generation over RBI Master Directions on KYC, delivering paragraph-level citations, hybrid BM25 + dense retrieval, cross-reference expansion, and compliance ablation benchmarking.
 
 ---
 
-## Key Highlights & Architectural Capabilities
-
-1. **Small-Model QLoRA Adaptation**:
-   - Adapts general instruct models to specialized Indian ID document parsing (Aadhaar, PAN, Voter ID, Driving Licence, Passport).
-   - Achieves **98.4% Exact Match** and **99.7% Document ID accuracy** on noisy OCR inputs, outperforming zero-shot base models by +44.2%.
-2. **Pluggable Multi-Provider Interface**:
-   - Hot-swap at runtime between:
-     - `LOCAL_FINE_TUNED`: Zero-latency deterministic engine running directly offline.
-     - `VLLM`: High-throughput OpenAI-compatible Docker container.
-     - `OLLAMA`: Local small-model daemon.
-     - `HUGGINGFACE`: Transformers pipeline.
-3. **LangGraph StateGraph Workflow**:
-   - Modular sequential and conditional graph execution:
-     - `Inbound Security Guard` ➔ `OCR Image Quality Check` ➔ `Small-Model Extraction` ➔ `Multi-Field Verification` ➔ `Decision Policy` ➔ `Outbound PII Redaction`.
-4. **Dual-Stage Security & Guardrails**:
-   - Inbound prompt injection & jailbreak defense.
-   - Outbound automated PII redaction (Aadhaar masking `XXXX-XXXX-1234`, mobile masking).
-5. **Interactive Testing UI**:
-   - **User Verification Portal**: Live testing, benchmark sample loader, stage-by-stage pipeline visualization, sanitized customer response.
-   - **Admin Control Center**: Live provider switching, threshold adjustment sliders, security toggles, and live fine-tuning evaluation benchmark dashboard.
-
----
-
-## Directory Structure
+## Unified System Architecture
 
 ```text
 Banking-KYC/
-├── banking_kyc/
-│   ├── config.py              # Centralized configuration & thresholds
-│   ├── models.py              # Pydantic v2 domain schemas
-│   ├── cli.py                 # Command-line interface
-│   ├── ocr/                   # Document ingestion, normalizer, quality analyzer
-│   │   ├── engine.py
-│   │   ├── normalizer.py
-│   │   └── preprocessor.py
-│   ├── security/              # Inbound prompt guard & outbound PII redactor
-│   │   ├── guardrail.py
-│   │   ├── inbound_guard.py
-│   │   └── outbound_redactor.py
-│   ├── providers/             # Pluggable LLM/VLM providers & registry
-│   │   ├── base.py
-│   │   ├── fine_tuned_local_provider.py
-│   │   ├── vllm_provider.py
-│   │   ├── ollama_provider.py
-│   │   ├── hf_provider.py
-│   │   └── registry.py
-│   ├── finetuning/            # QLoRA configs, dataset prep, evaluation
-│   │   ├── dataset_prep.py
-│   │   ├── qlora_config.py
-│   │   ├── train.py
-│   │   └── evaluator.py
-│   ├── workflow/              # LangGraph verification state graph
-│   │   └── graph.py
-│   ├── api/                   # REST API server & router
-│   │   └── server.py
-│   └── web/                   # User & Admin Web UI
-│       ├── index.html
-│       ├── styles.css
-│       └── app.js
-├── tests/                     # Automated unit and integration test suite
-│   ├── test_ocr.py
-│   ├── test_security.py
-│   ├── test_providers.py
+├── banking_kyc/               # Track A: Model-Side Fine-Tuning, OCR & Security
+│   ├── api/                   # REST API server
+│   ├── config.py              # Dynamic thresholds and settings
+│   ├── finetuning/            # QLoRA configs, dataset splits, evaluator
+│   ├── models.py              # Pydantic domain models
+│   ├── ocr/                   # Document normalizer, quality analyzer, heuristics
+│   ├── providers/             # Pluggable multi-provider engine (vLLM, Ollama, HF, Local)
+│   ├── security/              # Prompt injection guard & PII redactor
+│   ├── web/                   # User Portal & Admin Control Center (HTML5/CSS3/JS)
+│   └── workflow/              # LangGraph KYC verification StateGraph
+├── src/kycrag/                # Regulatory RAG Subsystem
+│   ├── bm25.py                # Zero-dependency BM25 keyword search
+│   ├── chunking.py            # Hierarchical paragraph chunking & xrefs
+│   ├── embeddings.py          # Dense embeddings & numpy vector index
+│   ├── guard.py               # PII redaction & intent classification
+│   ├── indexer.py             # Dual-index builder & version tracking
+│   ├── parse.py               # RBI Directions HTML/PDF parser
+│   ├── pipeline.py            # End-to-end RAG query pipeline
+│   └── retrieve.py            # Hybrid RRF retrieval & ablation runner
+├── app/                       # RAG Web Interfaces
+│   ├── api.py                 # FastAPI RAG endpoint
+│   ├── streamlit_app.py       # Streamlit RAG exploration UI
+│   └── static/index.html      # RAG web view
+├── eval/                      # RAG Evaluation Suite
+│   ├── questions.csv          # Benchmark evaluation questions
+│   └── run_eval.py            # RAG ablation runner & LLM judge
+├── tests/                     # Unified Test Suite (36+ tests)
+│   ├── fixtures/              # RAG test fixtures
 │   ├── test_finetuning_eval.py
-│   └── test_workflow.py
-├── data/processed/            # 1,400 Train, 300 Val, 300 Test splits
-├── Dockerfile                 # Containerized serving file
-├── MODEL_CARD.md              # Model card & Responsible AI report
+│   ├── test_ocr.py
+│   ├── test_pipeline.py       # RAG pipeline offline tests
+│   ├── test_providers.py
+│   ├── test_security.py
+│   └── test_workflow.py       # LangGraph end-to-end tests
+├── data/                      # Processed datasets and indexes
+├── Dockerfile                 # Production multi-stage Docker container
+├── Makefile                   # Unified developer automation with virtualenv
+├── MODEL_CARD.md              # Model card & Responsible AI documentation
 ├── pyproject.toml             # Project metadata
-├── requirements.txt           # Python dependencies
+├── requirements.txt           # Unified dependency specification
 └── run.py                     # Root CLI runner
 ```
 
 ---
 
-## Quickstart & Reproducibility Guide
+## Quickstart & Verification
 
-### 1. Run Automated Unit Tests
+### 1. Run Complete Automated Test Suite (Offline, Zero-Cost)
 ```bash
-python3 -m unittest discover -s tests -p "test_*.py" -v
+make test
 ```
+Runs all 36+ automated tests across OCR, security guardrails, multi-provider abstraction, fine-tuning evaluators, LangGraph workflows, and RAG retrieval pipelines.
 
-### 2. Launch the Web UI & API Server
+### 2. Launch FinKYC Verification Web UI & Admin Console
 ```bash
-python3 run.py serve --port 8080
+make serve
 ```
 Open **[http://localhost:8080](http://localhost:8080)** in your browser:
-- **User Portal**: Select a pre-loaded sample (Exact Match, OCR Noise, Name Mismatch, or Security Attack) and click **Run KYC Verification Pipeline**.
-- **Admin Center**: Switch providers, tweak similarity thresholds, and inspect fine-tuning benchmark results.
+- **User Portal**: Run end-to-end verification across dataset records.
+- **Admin Console**: Hot-swap inference providers, adjust similarity thresholds, toggle security guardrails, and inspect benchmark matrices.
 
-### 3. Generate Dataset Splits & Instruction Formatting
+### 3. Launch RBI KYC RAG Application
 ```bash
-python3 run.py prepare-data --output-dir data/processed
+make serve-rag
+```
+Or directly:
+```bash
+streamlit run app/streamlit_app.py
 ```
 
-### 4. Run Benchmark Evaluation Matrix
+### 4. RAG CLI Commands
 ```bash
-python3 run.py evaluate
-```
+# Ingest and parse RBI Directions
+python -m kycrag.cli build
 
-### 5. Inspect Configured Providers
-```bash
-python3 run.py list-providers
+# Ask a regulatory compliance question
+python -m kycrag.cli ask "What are the limits on a small account?"
+
+# Run RAG ablation evaluation (recall across 5 retrieval configs)
+python eval/run_eval.py --retrieval-only
 ```
 
 ---
 
-## Author & Maintainer
-- **Engineer**: Chandan Bauri
-- **Email**: chandanbauri441@gmail.com
-- **Git Author**: `chandan bauri <chandanbauri441@gmail.com>`
+## Authorship & Attribution
+- **Lead Engineer**: Chandan Bauri (<chandanbauri441@gmail.com>)
+- **Repository**: [Banking-KYC](https://github.com/TheSeven-IITKGP/Banking-KYC.git)
+- **Active Integration Branch**: `dev`
+- **Source Feature Branches (Preserved)**:
+  - `feature/kyc-finetuning-pipeline` (Model Adaptation, OCR, Security, LangGraph)
+  - `add-kyc-rag-app` (RBI Regulatory RAG Application)

@@ -5,18 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "banking-kyc"
 version = "1.0.0"
-description = "Enterprise Small-Model Adaptation and KYC Verification Platform"
+description = "Enterprise Small-Model Adaptation, KYC Verification, and RBI Regulatory RAG Platform"
 authors = [
     {name = "chandan bauri", email = "chandanbauri441@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0.0",
     "pandas>=2.0.0",
+    "numpy>=1.24.0",
     "torch>=2.0.0",
     "transformers>=4.40.0",
 ]
 
 [project.scripts]
 banking-kyc = "banking_kyc.cli:main"
+kycrag = "kycrag.cli:main"
+
+[tool.setuptools.packages.find]
+where = [".", "src"]

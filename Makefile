@@ -22,10 +22,13 @@ help:
 	@echo "Available commands:"
 	@echo "  make venv          - Create virtualenv (.venv) if not already present"
 	@echo "  make install       - Set up .venv and install/verify dependencies"
-	@echo "  make test          - Run full automated test suite inside .venv"
+	@echo "  make test          - Run full unified automated test suite (36 tests) inside .venv"
 	@echo "  make prepare-data  - Generate train/val/test splits inside .venv"
-	@echo "  make evaluate      - Run benchmark evaluation matrix inside .venv"
-	@echo "  make serve         - Start API & Web UI on http://localhost:$(PORT)"
+	@echo "  make evaluate      - Run fine-tuning benchmark evaluation matrix inside .venv"
+	@echo "  make serve         - Start FinKYC API & Web UI on http://localhost:$(PORT)"
+	@echo "  make serve-rag     - Start RBI KYC Regulatory RAG Streamlit App on http://localhost:8501"
+	@echo "  make build-rag     - Parse and build RAG corpus vector & BM25 index"
+	@echo "  make eval-rag      - Run RAG ablation benchmark (5 retrieval configs)"
 	@echo "  make providers     - List configured inference providers inside .venv"
 	@echo "  make train         - Run fine-tuning training job (dry run) inside .venv"
 	@echo "  make docker-build  - Build production Docker container image"
@@ -55,10 +58,25 @@ install: $(VENV)/bin/python3
 	fi
 	@$(PYTHON) -c "import pydantic, torch, pandas; print('✅ Environment verified: Core packages loaded successfully in .venv.')"
 
-# Run tests
+# Run tests (Unified: Verification + RAG pipeline)
 test: $(VENV)/bin/python3
-	@echo "🧪 Running automated test suite inside $(VENV)..."
-	@$(PYTHON) -m unittest discover -s tests -p "test_*.py" -v
+	@echo "🧪 Running full automated test suite (36 tests) inside $(VENV)..."
+	@PYTHONPATH=.:src $(PYTHON) -m unittest discover -s tests -p "test_*.py" -v
+
+# Launch RAG Streamlit app
+serve-rag: $(VENV)/bin/python3
+	@echo "📚 Launching RBI KYC Directions RAG App on http://127.0.0.1:8501..."
+	@PYTHONPATH=.:src $(PYTHON) -m streamlit run app/streamlit_app.py --server.port 8501 --server.address 127.0.0.1
+
+# Build RAG index
+build-rag: $(VENV)/bin/python3
+	@echo "🏗️ Building RAG corpus index..."
+	@PYTHONPATH=.:src $(PYTHON) -m kycrag.cli build
+
+# Evaluate RAG recall across 5 configurations
+eval-rag: $(VENV)/bin/python3
+	@echo "📊 Running RAG ablation benchmark across 5 retrieval configs..."
+	@PYTHONPATH=.:src $(PYTHON) eval/run_eval.py --retrieval-only
 
 # Prepare instruction tuning datasets
 prepare-data: $(VENV)/bin/python3
