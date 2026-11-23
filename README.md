@@ -99,6 +99,36 @@ python eval/run_eval.py --retrieval-only
 
 ---
 
+## Slurm GPU Cluster Training (VM03) & Deployment
+
+For complete instructions, consult [documentation/SERVER_DEPLOYMENT_GUIDE.md](../documentation/SERVER_DEPLOYMENT_GUIDE.md).
+
+### 1. Package & Submit to Cluster
+```bash
+# Package scripts and KYC datasets locally
+make package-slurm
+
+# Copy package to cluster
+scp -i <ssh-key> finkyc_slurm_package.tar.gz learner03@<vm03-ip>:~/project/
+
+# Connect and submit Slurm job on VM03
+ssh -i <ssh-key> learner03@<vm03-ip>
+cd ~/project && tar -xzvf finkyc_slurm_package.tar.gz && mkdir -p logs
+sbatch train.sbatch
+```
+
+### 2. Verify on Cluster & Deploy Container
+```bash
+# Verify inference on cluster without Docker
+python3 infer_slurm.py --adapter_path ~/checkpoints/job-<JOB_ID>
+
+# Download adapter weights locally & run production Docker container
+make docker-build
+make docker-run
+```
+
+---
+
 ## Authorship & Attribution
 - **Lead Engineer**: Chandan Bauri (<chandanbauri441@gmail.com>)
 - **Repository**: [Banking-KYC](https://github.com/TheSeven-IITKGP/Banking-KYC.git)

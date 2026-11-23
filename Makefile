@@ -8,7 +8,7 @@ PIP := $(VENV)/bin/pip
 PORT ?= 8080
 CONFIG ?= config_1_balanced
 
-.PHONY: all help venv install test prepare-data evaluate serve providers train docker-build docker-run clean
+.PHONY: all help venv install test prepare-data evaluate serve providers train docker-build docker-run package-slurm clean
 
 # Default target
 all: install test prepare-data
@@ -31,6 +31,7 @@ help:
 	@echo "  make eval-rag      - Run RAG ablation benchmark (5 retrieval configs)"
 	@echo "  make providers     - List configured inference providers inside .venv"
 	@echo "  make train         - Run fine-tuning training job (dry run) inside .venv"
+	@echo "  make package-slurm - Bundle training files into finkyc_slurm_package.tar.gz for VM03"
 	@echo "  make docker-build  - Build production Docker container image"
 	@echo "  make docker-run    - Run production container on port $(PORT)"
 	@echo "  make clean         - Remove .venv, caches, and temporary build files"
@@ -102,6 +103,19 @@ providers: $(VENV)/bin/python3
 train: $(VENV)/bin/python3
 	@echo "⚙️ Running QLoRA fine-tuning runner for config $(CONFIG)..."
 	@$(PYTHON) run.py train --config $(CONFIG)
+
+# Package Slurm cluster bundle for VM03
+package-slurm:
+	@echo "📦 Packaging FinKYC Slurm training artifacts for VM03 cluster..."
+	@tar -czvf finkyc_slurm_package.tar.gz \
+		train.sbatch \
+		train_slurm.py \
+		infer_slurm.py \
+		data/processed/kyc_train.jsonl \
+		data/processed/kyc_val.jsonl \
+		data/processed/kyc_test.jsonl
+	@echo "✅ Packaged successfully: finkyc_slurm_package.tar.gz"
+	@echo "👉 Copy to cluster with: scp -i <ssh-key> finkyc_slurm_package.tar.gz learner03@<vm03-ip>:~/project/"
 
 # Docker commands
 docker-build:
