@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import traceback
 
 
 def parse_args():
@@ -161,6 +162,41 @@ def main():
     print(f" Adapter Path:       {args.adapter_path}")
     print("==========================================================")
 
+    # Inspect adapter directory and auto-patch adapter_config.json if peft_type is missing
+    adapter_p = Path(args.adapter_path)
+    if adapter_p.exists():
+        cfg_file = adapter_p / "adapter_config.json"
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    cfg_data = json.load(f)
+                if "peft_type" not in cfg_data:
+                    print("🔧 Detected custom config without 'peft_type'; patching to 'LORA'...")
+                    cfg_data["peft_type"] = "LORA"
+                    if "target_modules" not in cfg_data:
+                        cfg_data["target_modules"] = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+                    if "r" not in cfg_data:
+                        cfg_data["r"] = 16
+                    if "lora_alpha" not in cfg_data:
+                        cfg_data["lora_alpha"] = 32
+                    if "bias" not in cfg_data:
+                        cfg_data["bias"] = "none"
+                    if "task_type" not in cfg_data:
+                        cfg_data["task_type"] = "CAUSAL_LM"
+                    with open(cfg_file, "w", encoding="utf-8") as f:
+                        json.dump(cfg_data, f, indent=2)
+                    print("✅ adapter_config.json successfully patched with peft_type: LORA.")
+            except Exception as e:
+                print(f"Notice: Config patch inspection note: {e}")
+
+        # Check for weights file
+        weight_files = [f for f in ["adapter_model.safetensors", "adapter_model.bin"] if (adapter_p / f).exists()]
+        if weight_files:
+            print(f"📦 Found trained adapter weight file: {weight_files[0]}")
+        else:
+            print(f"⚠️ Notice: No adapter weights (adapter_model.safetensors/adapter_model.bin) in {adapter_p}.")
+            print(f"Directory contains: {[p.name for p in adapter_p.glob('*')]}")
+
     sample_ocr = args.input_text
     if not sample_ocr:
         # Load first record from test file if present
@@ -245,6 +281,7 @@ def main():
                 return
             except Exception as e:
                 print(f"⚠️ Model load or generation encountered: {e}")
+                traceback.print_exc()
 
     # Fallback heuristic extraction
     print("\n--- Running Self-Contained Deterministic Heuristic Extraction ---")

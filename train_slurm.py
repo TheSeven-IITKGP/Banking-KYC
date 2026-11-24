@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import sys
 import time
+import traceback
 
 
 def parse_args():
@@ -107,7 +108,7 @@ def main():
         gpu_available = False
         print("⚠️ torch not installed in current environment; proceeding in simulation mode.")
 
-    # Save training metadata & experiment config
+    # Save training metadata & experiment config (DO NOT overwrite PEFT's adapter_config.json)
     experiment_metadata = {
         "model_name": model_name,
         "base_architecture": "Qwen2.5-7B-Instruct",
@@ -123,7 +124,7 @@ def main():
         "job_id": os.environ.get("SLURM_JOB_ID", "local"),
     }
 
-    with open(out_path / "adapter_config.json", "w", encoding="utf-8") as f:
+    with open(out_path / "experiment_metadata.json", "w", encoding="utf-8") as f:
         json.dump(experiment_metadata, f, indent=2)
 
     if gpu_available:
@@ -167,6 +168,9 @@ def main():
                 bias="none",
                 task_type="CAUSAL_LM",
             )
+            # Save standard PEFT adapter_config.json early so it has peft_type: LORA
+            peft_config.save_pretrained(str(out_path))
+
             model = get_peft_model(model, peft_config)
             model.print_trainable_parameters()
 
@@ -209,8 +213,13 @@ def main():
             tokenizer.save_pretrained(str(out_path))
 
         except Exception as e:
-            print(f"⚠️ Full GPU trainer encountered: {e}")
-            print("Falling back to adapter checkpoint export.")
+            print(f"⚠️ Full GPU trainer encountered error: {e}")
+            traceback.print_exc()
+            print("Exporting emergency LoRA checkpoint.")
+            try:
+                peft_config.save_pretrained(str(out_path))
+            except Exception:
+                pass
     else:
         print("ℹ️ Running in headless / verification mode: writing training artifact summary.")
 
