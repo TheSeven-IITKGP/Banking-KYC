@@ -22,6 +22,81 @@ from banking_kyc.workflow.graph import KYCWorkflowState, LangGraphKYCWorkflow  #
 
 st.set_page_config(page_title="KYC document verification", layout="centered")
 
+# RAG UI Theme CSS tokens injected into Streamlit to eliminate all white badges
+st.markdown("""
+<style>
+/* Exact RAG UI Theme Colors & Badge Tokens */
+.status-pill {
+    display: inline-block;
+    padding: 0.35rem 0.85rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0.6rem 0;
+    letter-spacing: -0.01em;
+}
+.status-pill.green, .status-pill.status-green, .status-pill.status-found, .status-pill.status-auto-approved {
+    background-color: #d7f5dd !important;
+    color: #166534 !important;
+    border: 1px solid #bbf7d0 !important;
+}
+.status-pill.orange, .status-pill.status-orange, .status-pill.status-partial, .status-pill.status-fuzzy-approved {
+    background-color: #ffedd1 !important;
+    color: #92400e !important;
+    border: 1px solid #fde68a !important;
+}
+.status-pill.red, .status-pill.status-red, .status-pill.status-unverified, .status-pill.status-manual-review {
+    background-color: #fde2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fecaca !important;
+}
+.status-pill.gray, .status-pill.status-gray, .status-pill.status-not_found, .status-pill.status-refused, .status-pill.status-security-rejected {
+    background-color: #eeeeee !important;
+    color: #444444 !important;
+    border: 1px solid #dddddd !important;
+}
+.warn-box {
+    background-color: #fff7cc !important;
+    color: #854d0e !important;
+    border: 1px solid #fef08a !important;
+    padding: 0.6rem 0.9rem !important;
+    border-radius: 6px !important;
+    margin: 0.75rem 0 !important;
+    font-size: 0.88rem !important;
+    line-height: 1.5 !important;
+}
+.source-card {
+    border: 1px solid #dddddd !important;
+    border-radius: 6px !important;
+    padding: 0.75rem 1rem !important;
+    margin: 0.5rem 0 0.8rem 0 !important;
+    background-color: #ffffff !important;
+}
+.source-card-title {
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+    font-size: 0.92rem !important;
+    margin-bottom: 0.25rem !important;
+}
+.source-card-heading {
+    color: #666666 !important;
+    font-size: 0.82rem !important;
+    margin-bottom: 0.4rem !important;
+}
+.source-card-pre {
+    white-space: pre-wrap !important;
+    font-family: inherit !important;
+    font-size: 0.85rem !important;
+    color: #333333 !important;
+    background-color: #f8fafc !important;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 4px !important;
+    border: 1px solid #e2e8f0 !important;
+    margin: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 FT_STATUS_LABEL = {
     "AUTO_APPROVED": ("Answered — document and applicant match", "green"),
     "APPROVED_WITH_FUZZY_MATCH": ("Partly answered — minor OCR noise resolved with fuzzy match", "green"),
@@ -160,15 +235,14 @@ if st.button("Verify document", type="primary", disabled=not raw_ocr_input.strip
         res = workflow.execute(state)
 
     if res.security_check and not res.security_check.is_safe:
-        st.warning(f"Security Alert: {res.security_check.threat_type} detected. "
-                   "Request neutralized by inbound prompt defense.")
+        st.markdown(f'<div class="warn-box">⚠️ Security Alert: {res.security_check.threat_type} detected. Request neutralized by inbound prompt defense.</div>', unsafe_allow_html=True)
     elif res.sanitized_view:
-        st.warning("Removed sensitive personal details before egress (Aadhaar masked to XXXX-XXXX-NNNN, mobile masked). "
-                   "Protected under RBI KYC privacy rules.")
+        st.markdown('<div class="warn-box">🛡️ Removed sensitive personal details before egress (Aadhaar masked to XXXX-XXXX-NNNN, mobile masked). Protected under RBI KYC privacy rules.</div>', unsafe_allow_html=True)
 
     decision_key = res.decision.value if hasattr(res.decision, "value") else str(res.decision)
     label, colour = FT_STATUS_LABEL.get(decision_key, (decision_key, "gray"))
-    st.markdown(f":{colour}[**{label}**]")
+    # Render with the vivid RAG color pill badge (with authentic colored background, not white!)
+    st.markdown(f'<div class="status-pill {colour}">{label}</div>', unsafe_allow_html=True)
 
     ext = res.extracted_data
     comp = res.field_comparison
@@ -185,7 +259,7 @@ if st.button("Verify document", type="primary", disabled=not raw_ocr_input.strip
     )
     st.markdown(answer_text)
 
-    # Sources cited (matching RAG UI expander structure)
+    # Sources cited (matching RAG UI structure with exact card styling)
     st.subheader("Sources cited")
     quality_flags = []
     if rec["ocr_input"]["image_quality_flags"].get("blur_detected"):
@@ -195,9 +269,16 @@ if st.button("Verify document", type="primary", disabled=not raw_ocr_input.strip
     tag = f" · {', '.join(quality_flags)}" if quality_flags else ""
     tag += " · official identity document"
 
-    with st.expander(f"{ext_type}, ID {ext.document_number or 'N/A'}{tag}"):
-        st.caption(f"Extraction confidence: {ext.extraction_confidence:.2f} · Document Type: {ext_type}")
-        st.text(raw_ocr_input)
+    st.markdown(
+        f"""
+        <div class="source-card">
+            <div class="source-card-title">{ext_type}, ID {ext.document_number or 'N/A'}{tag}</div>
+            <div class="source-card-heading">Extraction confidence: {ext.extraction_confidence:.2f} · Document Type: {ext_type} · Authority: Government of India</div>
+            <pre class="source-card-pre">{raw_ocr_input}</pre>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     with st.expander("Field matching & reconciliation (debug)"):
         st.markdown(f"- **ID Exact Match:** `{'PASS' if comp.document_number_exact_match else 'FAIL'}`")

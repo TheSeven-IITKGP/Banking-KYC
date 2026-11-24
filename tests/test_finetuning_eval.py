@@ -75,6 +75,12 @@ class TestFineTuningAndEval(unittest.TestCase):
         self.assertIn("Sources cited", content)
         self.assertIn("Sources cited", ft_content)
         self.assertIn("answer_text", ft_content)
+        self.assertIn("status-pill", content)
+        self.assertIn("status-pill", ft_content)
+        self.assertIn("#d7f5dd", content)
+        self.assertIn("#d7f5dd", ft_content)
+        self.assertIn("warn-box", content)
+        self.assertIn("warn-box", ft_content)
 
 
 if __name__ == "__main__":
