@@ -69,8 +69,18 @@ serve-rag: $(VENV)/bin/python3
 	@echo "📚 Launching RBI KYC Directions RAG App on http://127.0.0.1:8501..."
 	@PYTHONPATH=.:src $(PYTHON) -m streamlit run app/streamlit_app.py --server.port 8501 --server.address 127.0.0.1
 
-# Build RAG index
+# Download raw RBI KYC PDFs
+download-rag: $(VENV)/bin/python3
+	@echo "📥 Fetching documents from manifest.csv into data/raw/..."
+	@PYTHONPATH=.:src $(PYTHON) -m kycrag.cli download
+
+# Build RAG index from raw PDFs (Note: pre-built index already exists in data/processed)
 build-rag: $(VENV)/bin/python3
+	@if [ ! -d "data/raw" ] || [ -z "$$(ls -A data/raw 2>/dev/null)" ]; then \
+		echo "📥 data/raw is empty. Fetching source documents from manifest.csv..."; \
+		PYTHONPATH=.:src $(PYTHON) -m kycrag.cli download || \
+		(echo "⚠️ Automated download blocked. If needed, save the PDFs manually to data/raw/ or use the pre-built index in data/processed/." && exit 1); \
+	fi
 	@echo "🏗️ Building RAG corpus index..."
 	@PYTHONPATH=.:src $(PYTHON) -m kycrag.cli build
 
