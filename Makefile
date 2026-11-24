@@ -110,7 +110,9 @@ package-slurm:
 	@tar -czvf finkyc_slurm_package.tar.gz \
 		train.sbatch \
 		train_slurm.py \
+		infer.sbatch \
 		infer_slurm.py \
+		banking_kyc \
 		data/processed/kyc_train.jsonl \
 		data/processed/kyc_val.jsonl \
 		data/processed/kyc_test.jsonl
