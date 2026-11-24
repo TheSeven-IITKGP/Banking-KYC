@@ -91,9 +91,7 @@ $PYTHON_BIN "$TRAIN_SCRIPT" \
     --output_dir "$OUTPUT_DIR" \
     --lora_r 16 \
     --lora_alpha 32 \
-    --epochs 3 \
-    --batch_size 4 \
-    --grad_accum 4 \
+    --max_steps 100 \
     --lr 2e-4
 
 EXIT_CODE=$?

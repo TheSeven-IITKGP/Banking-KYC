@@ -101,11 +101,14 @@ class KYCDatasetPreparer:
         summary = {}
 
         for split_name, data in splits.items():
-            # Export raw JSONL
+            # Export raw JSONL (augmented with prompt and response keys for cluster starter compatibility)
             jsonl_file = out_path / f"kyc_{split_name}.jsonl"
             with open(jsonl_file, "w", encoding="utf-8") as f:
                 for item in data:
-                    f.write(json.dumps(item) + "\n")
+                    augmented = dict(item)
+                    augmented["prompt"] = f"{self.SYSTEM_PROMPT}\n\nExtract KYC information from this document scan:\n" + item["ocr_input"]["raw_ocr_text"]
+                    augmented["response"] = json.dumps(item["ground_truth_extraction_json"], ensure_ascii=False)
+                    f.write(json.dumps(augmented) + "\n")
 
             # Export Llama-3 ChatML format
             llama3_file = out_path / f"kyc_{split_name}_llama3.jsonl"

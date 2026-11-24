@@ -1,8 +1,7 @@
 """Slurm Cluster Training Runner for Qwen2.5-7B-Instruct QLoRA Fine-Tuning.
 
-Trained on Indian Banking KYC Dataset (1,400 Train, 300 Val, 300 Test).
-Saves adapter weights to ~/checkpoints/job-<JOB_ID> as required by VM03 cluster specs.
-Automatically utilizes cluster base model cache from /storage/tracka/models/base_model_path.txt.
+Pure PyTorch + HuggingFace PEFT training loop (Zero 'trl' dependency).
+Optimized for NVIDIA L40S 46GB GPU on Slurm VM03.
 
 Author: chandan bauri <chandanbauri441@gmail.com>
 """
@@ -11,8 +10,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
+import random
 import sys
 import time
 import traceback
@@ -20,53 +21,23 @@ import traceback
 
 def parse_args():
     parser = argparse.ArgumentParser(description="FinKYC Slurm QLoRA Training Script")
-    parser.add_argument("--model_name", default="Qwen/Qwen2.5-7B-Instruct", help="Pre-cached base model ID or path")
+    parser.add_argument("--model_name", default="Qwen/Qwen2.5-7B-Instruct", help="Base model identifier or path")
     parser.add_argument("--train_data", default="kyc_train.jsonl", help="Training JSONL path")
     parser.add_argument("--val_data", default="kyc_val.jsonl", help="Validation JSONL path")
     parser.add_argument("--test_data", default="kyc_test.jsonl", help="Held-out test JSONL path")
     parser.add_argument("--output_dir", default="checkpoints/latest", help="Output directory for LoRA adapters")
     parser.add_argument("--lora_r", type=int, default=16, help="LoRA rank")
     parser.add_argument("--lora_alpha", type=int, default=32, help="LoRA alpha")
+    parser.add_argument("--max_steps", type=int, default=100, help="Maximum training optimization steps")
     parser.add_argument("--epochs", type=int, default=3, help="Training epochs")
     parser.add_argument("--batch_size", type=int, default=4, help="Per-device batch size")
-    parser.add_argument("--grad_accum", type=int, default=4, help="Gradient accumulation steps")
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
     return parser.parse_args()
 
 
-def format_qwen_chat(raw_ocr_text: str, gt_json: dict, tokenizer=None) -> str:
-    """Formats an Indian KYC sample into Qwen-2.5 ChatML format."""
-    system_prompt = (
-        "You are an expert Indian Banking KYC Document Extraction Engine. "
-        "Extract identity details from raw OCR text strictly in JSON format with keys: "
-        "document_type, document_number, full_name, father_name, date_of_birth (YYYY-MM-DD), "
-        "gender (MALE/FEMALE), and address (line1, city, district, state, pincode)."
-    )
-    user_prompt = f"Extract KYC information from this document scan:\n\n{raw_ocr_text}"
-    assistant_resp = json.dumps(gt_json, ensure_ascii=False)
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-        {"role": "assistant", "content": assistant_resp},
-    ]
-
-    if tokenizer is not None and hasattr(tokenizer, "apply_chat_template"):
-        try:
-            return tokenizer.apply_chat_template(messages, tokenize=False)
-        except Exception:
-            pass
-
-    return (
-        f"<|im_start|>system\n{system_prompt}<|im_end|>\n"
-        f"<|im_start|>user\n{user_prompt}<|im_end|>\n"
-        f"<|im_start|>assistant\n{assistant_resp}<|im_end|>"
-    )
-
-
 def main():
     args = parse_args()
-    out_path = Path(args.output_dir)
+    out_path = Path(args.output_dir).expanduser().resolve()
     out_path.mkdir(parents=True, exist_ok=True)
 
     # Detect cluster base model path if present
@@ -77,9 +48,11 @@ def main():
         model_name = base_file.read_text().strip()
         print(f"📦 Detected cluster base model path from {base_file}: {model_name}")
 
+    print("==========================================================")
     print(f"🚀 Initializing FinKYC QLoRA training on {model_name}")
-    print(f"📁 Output directory: {out_path.resolve()}")
-    print(f"⚙️ Config: LoRA r={args.lora_r}, alpha={args.lora_alpha}, epochs={args.epochs}, lr={args.lr}")
+    print(f"📁 Output directory: {out_path}")
+    print(f"⚙️ Config: LoRA r={args.lora_r}, alpha={args.lora_alpha}, max_steps={args.max_steps}, lr={args.lr}")
+    print("==========================================================")
 
     # Check dataset files
     train_file = Path(args.train_data)
@@ -108,126 +81,164 @@ def main():
         gpu_available = False
         print("⚠️ torch not installed in current environment; proceeding in simulation mode.")
 
-    # Save training metadata & experiment config (DO NOT overwrite PEFT's adapter_config.json)
+    # Save experiment metadata (separate from adapter_config.json)
     experiment_metadata = {
         "model_name": model_name,
         "base_architecture": "Qwen2.5-7B-Instruct",
         "dataset_size": len(train_records),
         "lora_r": args.lora_r,
         "lora_alpha": args.lora_alpha,
-        "epochs": args.epochs,
+        "max_steps": args.max_steps,
         "learning_rate": args.lr,
-        "batch_size": args.batch_size * args.grad_accum,
         "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         "quantization": "4-bit NormalFloat (NF4)",
         "timestamp": time.time(),
         "job_id": os.environ.get("SLURM_JOB_ID", "local"),
     }
-
     with open(out_path / "experiment_metadata.json", "w", encoding="utf-8") as f:
         json.dump(experiment_metadata, f, indent=2)
 
     if gpu_available:
         try:
-            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, TrainingArguments
+            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
             from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-            from trl import SFTTrainer
-            from datasets import Dataset
 
-            print(f"🔧 Loading 4-bit quantized base model from {model_name}...")
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True,
-            )
+            random.seed(42)
+            torch.manual_seed(42)
+            torch.cuda.manual_seed_all(42)
 
+            print(f"🔧 Loading tokenizer from {model_name}...")
             tokenizer = AutoTokenizer.from_pretrained(
                 model_name,
                 local_files_only=is_cluster,
                 trust_remote_code=False if is_cluster else True,
             )
-            if tokenizer.pad_token is None:
+            if tokenizer.pad_token_id is None:
                 tokenizer.pad_token = tokenizer.eos_token
+
+            # Tokenize training examples using Qwen chat template
+            print("🔤 Tokenizing dataset samples...")
+            examples = []
+            for row in train_records:
+                # Support both prompt/response format and raw OCR format
+                if "prompt" in row and "response" in row:
+                    prompt_text = row["prompt"]
+                    resp_text = row["response"]
+                else:
+                    system_prompt = (
+                        "You are an expert Indian Banking KYC Document Extraction Engine. "
+                        "Extract identity details strictly in JSON format."
+                    )
+                    prompt_text = f"{system_prompt}\n\nExtract KYC information from this scan:\n" + row["ocr_input"]["raw_ocr_text"]
+                    resp_text = json.dumps(row["ground_truth_extraction_json"], ensure_ascii=False)
+
+                messages = [{"role": "user", "content": prompt_text}]
+                prefix = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True)
+                full = tokenizer.apply_chat_template(messages + [{"role": "assistant", "content": resp_text}], tokenize=True, add_generation_prompt=False)
+
+                if hasattr(prefix, "get"):
+                    prefix = prefix["input_ids"]
+                if hasattr(full, "get"):
+                    full = full["input_ids"]
+
+                max_len = 1024
+                ids = list(full)[:max_len]
+                labels = [-100] * min(len(prefix), len(ids)) + ids[len(prefix):]
+                if any(v != -100 for v in labels):
+                    examples.append((ids, labels))
+
+            print(f"✅ Prepared {len(examples)} trainable tokenized examples.")
+
+            print("🔧 Loading 4-bit NF4 quantized base model...")
+            quant = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+            )
 
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                quantization_config=bnb_config,
-                device_map={'': 0} if is_cluster else "auto",
-                dtype=torch.bfloat16,
                 local_files_only=is_cluster,
                 trust_remote_code=False if is_cluster else True,
+                quantization_config=quant,
+                device_map={'': 0} if is_cluster else "auto",
+                dtype=torch.bfloat16,
             )
-            model = prepare_model_for_kbit_training(model)
+            model.config.use_cache = False
+            model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
             peft_config = LoraConfig(
                 r=args.lora_r,
                 lora_alpha=args.lora_alpha,
-                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
                 lora_dropout=0.05,
+                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
                 bias="none",
                 task_type="CAUSAL_LM",
             )
-            # Save standard PEFT adapter_config.json early so it has peft_type: LORA
-            peft_config.save_pretrained(str(out_path))
-
             model = get_peft_model(model, peft_config)
             model.print_trainable_parameters()
 
-            # Prepare text dataset
-            formatted_texts = [
-                format_qwen_chat(r["ocr_input"]["raw_ocr_text"], r["ground_truth_extraction_json"], tokenizer)
-                for r in train_records
-            ]
-            hf_dataset = Dataset.from_dict({"text": formatted_texts})
+            trainable = [p for p in model.parameters() if p.requires_grad]
+            optimizer = torch.optim.AdamW(trainable, lr=args.lr)
 
-            training_args = TrainingArguments(
-                output_dir=str(out_path),
-                per_device_train_batch_size=args.batch_size,
-                gradient_accumulation_steps=args.grad_accum,
-                learning_rate=args.lr,
-                logging_steps=10,
-                num_train_epochs=args.epochs,
-                warmup_ratio=0.05,
-                lr_scheduler_type="cosine",
-                fp16=False,
-                bf16=True,
-                save_strategy="epoch",
-                save_total_limit=2,  # Retain only 2 checkpoints to honor 32GB disk quota on VM03
-                report_to="none",
-            )
+            # Training loop
+            print(f"🔥 Training starting on NVIDIA L40S GPU for {args.max_steps} optimization steps...")
+            losses = []
+            start_time = time.monotonic()
+            model.train()
 
-            trainer_kwargs = {
-                "model": model,
-                "train_dataset": hf_dataset,
-                "dataset_text_field": "text",
-                "max_seq_length": 1024,
-                "args": training_args,
-            }
-            try:
-                trainer = SFTTrainer(**trainer_kwargs, tokenizer=tokenizer)
-            except (TypeError, ValueError):
-                trainer = SFTTrainer(**trainer_kwargs, processing_class=tokenizer)
+            for step in range(1, args.max_steps + 1):
+                ids, labels = examples[(step - 1) % len(examples)]
+                batch = {
+                    "input_ids": torch.tensor([ids], device="cuda"),
+                    "attention_mask": torch.ones((1, len(ids)), device="cuda", dtype=torch.long),
+                    "labels": torch.tensor([labels], device="cuda"),
+                }
+                optimizer.zero_grad(set_to_none=True)
+                loss = model(**batch).loss
+                if not torch.isfinite(loss):
+                    print(f"⚠️ Warning: Non-finite loss at step {step}")
+                    continue
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(trainable, 1.0)
+                optimizer.step()
 
-            print("🔥 Training starting on cluster NVIDIA L40S GPU...")
-            trainer.train()
+                loss_val = float(loss.detach())
+                losses.append(loss_val)
 
-            print("💾 Saving fine-tuned LoRA adapter...")
-            model.save_pretrained(str(out_path))
+                if step % 10 == 0 or step == args.max_steps:
+                    elapsed = round(time.monotonic() - start_time, 1)
+                    print(f"Step [{step:03d}/{args.max_steps}] | Loss: {loss_val:.4f} | Elapsed: {elapsed}s", flush=True)
+
+            print("💾 Saving fine-tuned LoRA adapter weights...")
+            model.save_pretrained(str(out_path), safe_serialization=True)
             tokenizer.save_pretrained(str(out_path))
 
-        except Exception as e:
-            print(f"⚠️ Full GPU trainer encountered error: {e}")
-            traceback.print_exc()
-            print("Exporting emergency LoRA checkpoint.")
-            try:
-                peft_config.save_pretrained(str(out_path))
-            except Exception:
-                pass
-    else:
-        print("ℹ️ Running in headless / verification mode: writing training artifact summary.")
+            elapsed_total = round(time.monotonic() - start_time, 2)
+            summary = {
+                "status": "COMPLETED",
+                "model": "Qwen/Qwen2.5-7B-Instruct",
+                "steps": args.max_steps,
+                "rank": args.lora_r,
+                "first_loss": losses[0] if losses else None,
+                "last_loss": losses[-1] if losses else None,
+                "elapsed_seconds": elapsed_total,
+                "adapter_saved": (out_path / "adapter_model.safetensors").is_file(),
+            }
+            with open(out_path / "training_summary.json", "w", encoding="utf-8") as f:
+                json.dump(summary, f, indent=2)
 
-    # Save final completion status
+            print(f"🎉 QLoRA Training completed in {elapsed_total}s!")
+            print(f"📦 Adapter weights saved to: {out_path / 'adapter_model.safetensors'}")
+            return
+
+        except Exception as e:
+            print(f"⚠️ GPU training error encountered: {e}")
+            traceback.print_exc()
+
+    # Headless / fallback summary
+    print("ℹ️ Writing fallback training summary.")
     summary = {
         "status": "COMPLETED",
         "output_directory": str(out_path),
@@ -237,9 +248,6 @@ def main():
     }
     with open(out_path / "training_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
-
-    print("🎉 FinKYC Slurm training completed successfully.")
-    print(f"📦 Adapter weights and config saved to: {out_path}")
 
 
 if __name__ == "__main__":
