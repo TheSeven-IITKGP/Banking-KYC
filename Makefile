@@ -8,7 +8,7 @@ PIP := $(VENV)/bin/pip
 PORT ?= 8080
 CONFIG ?= config_1_balanced
 
-.PHONY: all help venv install test prepare-data evaluate serve providers train docker-build docker-run package-slurm clean
+.PHONY: all help venv install test prepare-data evaluate serve serve-rag serve-ft providers train docker-build docker-run package-slurm clean
 
 # Default target
 all: install test prepare-data
@@ -27,6 +27,7 @@ help:
 	@echo "  make evaluate      - Run fine-tuning benchmark evaluation matrix inside .venv"
 	@echo "  make serve         - Start FinKYC API & Web UI on http://localhost:$(PORT)"
 	@echo "  make serve-rag     - Start RBI KYC Regulatory RAG Streamlit App on http://localhost:8501"
+	@echo "  make serve-ft      - Start KYC Fine-Tuning Verification Streamlit App on http://localhost:8502"
 	@echo "  make build-rag     - Parse and build RAG corpus vector & BM25 index"
 	@echo "  make eval-rag      - Run RAG ablation benchmark (5 retrieval configs)"
 	@echo "  make providers     - List configured inference providers inside .venv"
@@ -68,6 +69,11 @@ test: $(VENV)/bin/python3
 serve-rag: $(VENV)/bin/python3
 	@echo "📚 Launching RBI KYC Directions RAG App on http://127.0.0.1:8501..."
 	@PYTHONPATH=.:src $(PYTHON) -m streamlit run app/streamlit_app.py --server.port 8501 --server.address 127.0.0.1
+
+# Launch Fine-Tuning Streamlit app
+serve-ft: $(VENV)/bin/python3
+	@echo "🔍 Launching KYC Fine-Tuning Verification UI on http://127.0.0.1:8502..."
+	@PYTHONPATH=.:src $(PYTHON) -m streamlit run app/finetuning_streamlit_app.py --server.port 8502 --server.address 127.0.0.1
 
 # Download raw RBI KYC PDFs
 download-rag: $(VENV)/bin/python3

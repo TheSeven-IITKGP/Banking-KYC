@@ -55,6 +55,23 @@ class TestFineTuningAndEval(unittest.TestCase):
         self.assertGreater(four_way["Fine-Tuned Model + RAG"]["exact_match_pct"], 98.0)
         self.assertGreater(four_way["Fine-Tuned Model + RAG"]["judge_composite_score"], 9.0)
 
+    def test_streamlit_app_and_finetuning_ui(self):
+        ft_app_path = Path(__file__).resolve().parent.parent / "app" / "finetuning_streamlit_app.py"
+        unified_app_path = Path(__file__).resolve().parent.parent / "app" / "streamlit_app.py"
+        self.assertTrue(ft_app_path.exists())
+        self.assertTrue(unified_app_path.exists())
+
+        # Verify FT_STATUS_LABEL matches the RAG color scheme
+        content = unified_app_path.read_text(encoding="utf-8")
+        self.assertIn("FT_STATUS_LABEL", content)
+        self.assertIn("RAG_STATUS_LABEL", content)
+        self.assertIn('"green"', content)
+        self.assertIn('"orange"', content)
+        self.assertIn('"red"', content)
+        self.assertIn('"gray"', content)
+        self.assertIn("KYC document verification", content)
+        self.assertIn("KYC rules assistant", content)
+
 
 if __name__ == "__main__":
     unittest.main()
