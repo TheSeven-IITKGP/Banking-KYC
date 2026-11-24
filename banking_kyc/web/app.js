@@ -378,14 +378,35 @@ function renderVerificationResult(res) {
     }
   });
 
-  // Decision Banner
+  // Warning / Alert Notice (matching RAG UI warn box)
+  const alertEl = document.getElementById("securityOrPiiAlert");
+  const sec = res.security_check || {};
+  if (!sec.is_safe) {
+    alertEl.style.display = "block";
+    alertEl.innerText = `⚠️ Security Alert: ${sec.threat_type || 'Attack'} detected. Request neutralized by inbound prompt defense.`;
+  } else if (res.sanitized_view) {
+    alertEl.style.display = "block";
+    alertEl.innerText = "🛡️ Removed sensitive personal details before egress (Aadhaar masked to XXXX-XXXX-NNNN, mobile masked). Protected under RBI KYC privacy rules.";
+  } else {
+    alertEl.style.display = "none";
+  }
+
+  // Decision Banner (Aligned with RAG status labels & colors)
   const banner = document.getElementById("decisionBanner");
   banner.className = "decision-banner";
   const title = document.getElementById("decisionTitle");
   const sub = document.getElementById("decisionSub");
 
-  title.innerText = res.decision;
-  sub.innerText = `Decision: ${res.decision} • Confidence: ${(res.confidence_score * 100).toFixed(1)}% • Latency: ${res.processing_time_ms} ms • Provider: ${res.active_provider}`;
+  const STATUS_MAP = {
+    AUTO_APPROVED: "Answered — document and applicant match",
+    APPROVED_WITH_FUZZY_MATCH: "Partly answered — minor OCR noise resolved with fuzzy match",
+    MANUAL_REVIEW_OR_REJECT: "Discrepancy — name variation requires manual review",
+    REJECTED_POOR_QUALITY: "Verification failed — document blur, glare, or illegible scan",
+    REJECTED_SECURITY_VIOLATION: "Outside assistant scope — prompt injection attack or security violation"
+  };
+
+  title.innerText = STATUS_MAP[res.decision] || res.decision;
+  sub.innerText = `Decision: ${res.decision} • Overall Match: ${res.overall_match} • Processing Time: ${res.processing_time_ms} ms • Provider: ${res.active_provider}`;
 
   if (res.decision === "AUTO_APPROVED") {
     banner.classList.add("auto-approved");
@@ -396,6 +417,29 @@ function renderVerificationResult(res) {
   } else {
     banner.classList.add("manual-review");
   }
+
+  // Main Narrative Answer (matching RAG UI narrative answer block)
+  const fc = res.field_comparison || {};
+  const ext = res.extracted_data || {};
+  const extType = ext.document_type || "DOCUMENT";
+  const appName = document.getElementById("applicantName").value || "Applicant";
+  const appDocType = document.getElementById("applicantDocType").value;
+  const appDocNum = document.getElementById("applicantDocNum").value;
+  const simScore = ((fc.name_similarity_score || 0) * 100).toFixed(1);
+  const namePass = fc.name_similarity_score >= (currentConfig?.thresholds?.name_similarity_threshold || 0.8) ? "PASS" : "FAIL";
+  const idPass = fc.document_number_exact_match ? "PASS" : "FAIL";
+  const dobPass = fc.dob_match ? "PASS" : "FAIL";
+
+  const narrative = `Extracted <strong>${extType}</strong> (<code>${ext.document_number || 'N/A'}</code>) for <strong>${ext.full_name || 'N/A'}</strong> (DOB: <code>${ext.date_of_birth || 'N/A'}</code>). Reconciled against submitted profile for <strong>${appName}</strong> (${appDocType} <code>${appDocNum}</code>). Name similarity score: <strong>${simScore}%</strong> (${namePass}), ID exact match: <strong>${idPass}</strong>, DOB validation: <strong>${dobPass}</strong>. Overall decision: <strong>${res.decision}</strong> (verified in ${res.processing_time_ms} ms).`;
+  document.getElementById("narrativeAnswer").innerHTML = narrative;
+
+  // Sources cited details (matching RAG UI source expander)
+  const quality = ext.image_quality || {};
+  let tag = quality.blur_detected ? " · blurry" : "";
+  tag += quality.glare_detected ? " · glare" : "";
+  document.getElementById("sourceCitedSummary").innerText = `${extType}, ID ${ext.document_number || 'N/A'}${tag} · official identity document`;
+  document.getElementById("sourceCitedHeading").innerText = `Extraction confidence: ${(ext.extraction_confidence || 0.95).toFixed(2)} · Document Type: ${extType} · Authority: Government of India`;
+  document.getElementById("sourceCitedText").innerText = document.getElementById("rawOcrText").value;
 
   // Metrics
   const fc = res.field_comparison || {};

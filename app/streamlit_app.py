@@ -35,11 +35,11 @@ RAG_STATUS_LABEL = {
 }
 
 FT_STATUS_LABEL = {
-    "AUTO_APPROVED": ("Auto approved — document and applicant match", "green"),
-    "APPROVED_WITH_FUZZY_MATCH": ("Approved with fuzzy match — minor OCR noise resolved", "green"),
-    "MANUAL_REVIEW_OR_REJECT": ("Manual review required — name variation or discrepancy", "orange"),
-    "REJECTED_POOR_QUALITY": ("Rejected — document blur, glare, or illegible scan", "red"),
-    "REJECTED_SECURITY_VIOLATION": ("Refused — prompt injection attack or security violation", "gray"),
+    "AUTO_APPROVED": ("Answered — document and applicant match", "green"),
+    "APPROVED_WITH_FUZZY_MATCH": ("Partly answered — minor OCR noise resolved with fuzzy match", "green"),
+    "MANUAL_REVIEW_OR_REJECT": ("Discrepancy — name variation requires manual review", "orange"),
+    "REJECTED_POOR_QUALITY": ("Verification failed — document blur, glare, or illegible scan", "red"),
+    "REJECTED_SECURITY_VIOLATION": ("Outside assistant scope — prompt injection attack or security violation", "gray"),
 }
 
 
@@ -203,25 +203,37 @@ if subsystem == "🔍 KYC document verification (Fine-Tuning)":
         decision_key = res.decision.value if hasattr(res.decision, "value") else str(res.decision)
         label, colour = FT_STATUS_LABEL.get(decision_key, (decision_key, "gray"))
         st.markdown(f":{colour}[**{label}**]")
-        st.markdown(f"**Decision:** `{decision_key}` · **Overall Match:** `{res.overall_match}` · **Processing Time:** `{res.processing_time_ms:.1f} ms`")
 
-        # Sources / Details Expanders (matching RAG UI pattern)
-        with st.expander("Extracted document details"):
-            ext = res.extracted_data
-            ext_type = ext.document_type.value if hasattr(ext.document_type, "value") else str(ext.document_type)
-            st.markdown(f"- **Document Type:** `{ext_type}`")
-            st.markdown(f"- **Document Number:** `{ext.document_number or 'N/A'}`")
-            st.markdown(f"- **Full Name:** `{ext.full_name or 'N/A'}`")
-            st.markdown(f"- **Father's Name:** `{ext.father_name or 'N/A'}`")
-            st.markdown(f"- **Date of Birth:** `{ext.date_of_birth or 'N/A'}`")
-            st.markdown(f"- **Gender:** `{ext.gender or 'N/A'}`")
-            if ext.address:
-                addr_str = f"{ext.address.line1 or ''}, {ext.address.city or ''}, {ext.address.state or ''} - {ext.address.pincode or ''}".strip(", -")
-                st.markdown(f"- **Address:** `{addr_str}`")
-            st.caption(f"Extraction Confidence: {ext.extraction_confidence:.2f}")
+        ext = res.extracted_data
+        comp = res.field_comparison
+        ext_type = ext.document_type.value if hasattr(ext.document_type, "value") else str(ext.document_type)
 
-        with st.expander("Field matching & reconciliation"):
-            comp = res.field_comparison
+        # Narrative answer mirroring RAG UI answer text block
+        answer_text = (
+            f"Extracted **{ext_type}** (`{ext.document_number or 'N/A'}`) for **{ext.full_name or 'N/A'}** "
+            f"(DOB: `{ext.date_of_birth or 'N/A'}`). Reconciled against submitted profile for **{app_name}** "
+            f"({app_doc_type} `{app_doc_num}`). Name similarity score is **{comp.name_similarity_score * 100:.1f}%** "
+            f"({'PASS' if comp.name_similarity_score >= fuzzy_threshold else 'FAIL'}), ID exact match: "
+            f"**{'PASS' if comp.document_number_exact_match else 'FAIL'}**, DOB match: "
+            f"**{'PASS' if comp.dob_match else 'FAIL'}**. Overall decision: **{decision_key}**."
+        )
+        st.markdown(answer_text)
+
+        # Sources cited (matching RAG UI expander structure)
+        st.subheader("Sources cited")
+        quality_flags = []
+        if rec["ocr_input"]["image_quality_flags"].get("blur_detected"):
+            quality_flags.append("blurry")
+        if rec["ocr_input"]["image_quality_flags"].get("glare_detected"):
+            quality_flags.append("glare")
+        tag = f" · {', '.join(quality_flags)}" if quality_flags else ""
+        tag += " · official identity document"
+
+        with st.expander(f"{ext_type}, ID {ext.document_number or 'N/A'}{tag}"):
+            st.caption(f"Extraction confidence: {ext.extraction_confidence:.2f} · Document Type: {ext_type}")
+            st.text(raw_ocr_input)
+
+        with st.expander("Field matching & reconciliation (debug)"):
             st.markdown(f"- **ID Exact Match:** `{'PASS' if comp.document_number_exact_match else 'FAIL'}`")
             st.markdown(f"- **Name Levenshtein Similarity:** `{comp.name_similarity_score * 100:.1f}%` (Threshold: {fuzzy_threshold * 100:.0f}%)")
             st.markdown(f"- **DOB Validation:** `{'PASS' if comp.dob_match else 'FAIL'}`")
@@ -241,11 +253,11 @@ if subsystem == "🔍 KYC document verification (Fine-Tuning)":
             st.markdown("#### QLoRA Parameter Ablations (Slide 82)")
             st.dataframe(KYCEvaluator.get_benchmark_report(), use_container_width=True)
 
-        with st.expander("Execution trace (debug)"):
+        with st.expander("All workflow steps (debug)"):
             for step in res.execution_trace:
                 st.write(f"`{step.get('node', 'stage')}` · {step.get('status', 'complete')} · {step.get('duration_ms', 0):.1f} ms")
 
-        st.caption(f"Provider {active_prov} · Adapter job-178 (Qwen2.5-7B-QLoRA) · Lead Engineer: Chandan Bauri")
+        st.caption(f"Config {active_prov} · adapter job-178 (Qwen2.5-7B-QLoRA) · Lead Engineer: Chandan Bauri")
 
 else:
     # ------------------------------------------------------------------

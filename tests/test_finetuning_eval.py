@@ -63,6 +63,7 @@ class TestFineTuningAndEval(unittest.TestCase):
 
         # Verify FT_STATUS_LABEL matches the RAG color scheme
         content = unified_app_path.read_text(encoding="utf-8")
+        ft_content = ft_app_path.read_text(encoding="utf-8")
         self.assertIn("FT_STATUS_LABEL", content)
         self.assertIn("RAG_STATUS_LABEL", content)
         self.assertIn('"green"', content)
@@ -71,6 +72,9 @@ class TestFineTuningAndEval(unittest.TestCase):
         self.assertIn('"gray"', content)
         self.assertIn("KYC document verification", content)
         self.assertIn("KYC rules assistant", content)
+        self.assertIn("Sources cited", content)
+        self.assertIn("Sources cited", ft_content)
+        self.assertIn("answer_text", ft_content)
 
 
 if __name__ == "__main__":

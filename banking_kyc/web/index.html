@@ -154,11 +154,25 @@
           </div>
 
           <div id="resultContent" style="display: none;">
-            <!-- Big Decision Banner -->
+            <!-- Warning / Alert Notice (matching RAG UI warn box) -->
+            <div id="securityOrPiiAlert" class="warn" style="display: none;"></div>
+
+            <!-- Big Decision Banner (matching RAG UI status badge) -->
             <div class="decision-banner" id="decisionBanner">
               <span class="decision-title" id="decisionTitle">AUTO_APPROVED</span>
               <span class="decision-sub" id="decisionSub">Overall Match: True • Processing Time: 18.2 ms</span>
             </div>
+
+            <!-- Main Narrative Answer (matching RAG UI answer text) -->
+            <div id="narrativeAnswer" class="answer" style="margin: 0.8rem 0; font-size: 0.95rem; line-height: 1.5; color: #1a1a1a;"></div>
+
+            <!-- Sources Cited (matching RAG UI expander structure) -->
+            <h3 style="font-size: 1rem; margin-top: 1rem; margin-bottom: 0.4rem; color: #1a1a1a;">Sources cited</h3>
+            <details class="source" id="sourceCitedDetails" open>
+              <summary id="sourceCitedSummary">Document Extraction Evidence</summary>
+              <div class="heading" id="sourceCitedHeading" style="color: #666; font-size: 0.85rem; margin: 0.3rem 0;"></div>
+              <pre id="sourceCitedText" style="white-space: pre-wrap; font-family: inherit; font-size: 0.85rem; color: #333; margin-top: 0.4rem;"></pre>
+            </details>
 
             <!-- Score Cards Grid -->
             <div class="metrics-grid">
