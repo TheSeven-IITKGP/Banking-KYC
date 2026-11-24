@@ -10,6 +10,7 @@
 # ==============================================================================
 # FinKYC: Slurm GPU Inference Job for Fine-Tuned Qwen2.5-7B Adapter
 # Author: chandan bauri <chandanbauri441@gmail.com>
+# Node: upgrad-l40s-vm03 (NVIDIA L40S 46GB GPU)
 # ==============================================================================
 
 echo "=========================================================="
@@ -24,14 +25,21 @@ echo "=========================================================="
 
 mkdir -p logs
 
-# Activate Python environment on VM if present
-if [ -f "${HOME}/.venv/bin/activate" ]; then
-    echo "Activating virtualenv at ${HOME}/.venv..."
+# Activate Python environment on VM03
+if [ -f "/storage/tracka/runtime/venv/bin/activate" ]; then
+    echo "Activating shared cluster venv at /storage/tracka/runtime/venv..."
+    source "/storage/tracka/runtime/venv/bin/activate"
+elif [ -f "${HOME}/.venv/bin/activate" ]; then
     source "${HOME}/.venv/bin/activate"
 elif [ -f "./.venv/bin/activate" ]; then
-    echo "Activating virtualenv at ./.venv..."
     source "./.venv/bin/activate"
 fi
+
+PYTHON_BIN="python3"
+if [ -f "/storage/tracka/runtime/venv/bin/python3" ]; then
+    PYTHON_BIN="/storage/tracka/runtime/venv/bin/python3"
+fi
+echo "Using Python: $($PYTHON_BIN --version 2>&1) at $PYTHON_BIN"
 
 ADAPTER_PATH="$1"
 if [ -z "$ADAPTER_PATH" ]; then
@@ -41,7 +49,7 @@ fi
 
 echo "Target Adapter Path: $ADAPTER_PATH"
 
-python3 infer_slurm.py --adapter_path "$ADAPTER_PATH"
+$PYTHON_BIN infer_slurm.py --adapter_path "$ADAPTER_PATH"
 
 echo "=========================================================="
 echo " Inference Completed at $(date)"

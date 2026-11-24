@@ -2,6 +2,7 @@
 
 Trained on Indian Banking KYC Dataset (1,400 Train, 300 Val, 300 Test).
 Saves adapter weights to ~/checkpoints/job-<JOB_ID> as required by VM03 cluster specs.
+Automatically utilizes cluster base model cache from /storage/tracka/models/base_model_path.txt.
 
 Author: chandan bauri <chandanbauri441@gmail.com>
 """
@@ -67,14 +68,21 @@ def main():
     out_path = Path(args.output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    print(f"🚀 Initializing FinKYC QLoRA training on {args.model_name}")
+    # Detect cluster base model path if present
+    model_name = args.model_name
+    base_file = Path("/storage/tracka/models/base_model_path.txt")
+    is_cluster = base_file.exists() or Path(model_name).exists()
+    if base_file.exists():
+        model_name = base_file.read_text().strip()
+        print(f"📦 Detected cluster base model path from {base_file}: {model_name}")
+
+    print(f"🚀 Initializing FinKYC QLoRA training on {model_name}")
     print(f"📁 Output directory: {out_path.resolve()}")
     print(f"⚙️ Config: LoRA r={args.lora_r}, alpha={args.lora_alpha}, epochs={args.epochs}, lr={args.lr}")
 
     # Check dataset files
     train_file = Path(args.train_data)
     if not train_file.exists():
-        # Look in data/processed
         train_file = Path("data/processed") / args.train_data
 
     if not train_file.exists():
@@ -101,7 +109,7 @@ def main():
 
     # Save training metadata & experiment config
     experiment_metadata = {
-        "model_name": args.model_name,
+        "model_name": model_name,
         "base_architecture": "Qwen2.5-7B-Instruct",
         "dataset_size": len(train_records),
         "lora_r": args.lora_r,
@@ -125,7 +133,7 @@ def main():
             from trl import SFTTrainer
             from datasets import Dataset
 
-            print("🔧 Loading 4-bit quantized base model...")
+            print(f"🔧 Loading 4-bit quantized base model from {model_name}...")
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
@@ -133,15 +141,21 @@ def main():
                 bnb_4bit_use_double_quant=True,
             )
 
-            tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=True)
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_name,
+                local_files_only=is_cluster,
+                trust_remote_code=False if is_cluster else True,
+            )
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
 
             model = AutoModelForCausalLM.from_pretrained(
-                args.model_name,
+                model_name,
                 quantization_config=bnb_config,
-                device_map="auto",
-                trust_remote_code=True,
+                device_map={'': 0} if is_cluster else "auto",
+                dtype=torch.bfloat16,
+                local_files_only=is_cluster,
+                trust_remote_code=False if is_cluster else True,
             )
             model = prepare_model_for_kbit_training(model)
 
@@ -187,7 +201,7 @@ def main():
                 args=training_args,
             )
 
-            print("🔥 Training starting on cluster GPU...")
+            print("🔥 Training starting on cluster NVIDIA L40S GPU...")
             trainer.train()
 
             print("💾 Saving fine-tuned LoRA adapter...")

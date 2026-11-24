@@ -10,8 +10,9 @@
 # ==============================================================================
 # FinKYC: Indian Banking KYC QLoRA Fine-Tuning Job on Slurm Cluster (VM03)
 # Author: chandan bauri <chandanbauri441@gmail.com>
-# Base Model: Qwen/Qwen2.5-7B-Instruct (shared read-only on cluster)
-# Checkpoints saved to: ~/checkpoints/job-$SLURM_JOB_ID/
+# Node: upgrad-l40s-vm03 (NVIDIA L40S 46GB GPU)
+# Base Model: /storage/tracka/models/base_model_path.txt
+# Checkpoints: ~/checkpoints/job-$SLURM_JOB_ID/
 # ==============================================================================
 
 echo "=========================================================="
@@ -24,29 +25,35 @@ echo " Working Dir:  $(pwd)"
 echo " GPU:          $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo 'GPU allocated via Slurm')"
 echo "=========================================================="
 
-# Ensure logs directory exists
 mkdir -p logs
 
 # Set output directory following cluster convention: ~/checkpoints/job-JOB_ID
 OUTPUT_DIR="${HOME}/checkpoints/job-${SLURM_JOB_ID}"
 mkdir -p "$OUTPUT_DIR"
 
-# Activate Python environment on VM if present
-if [ -f "${HOME}/.venv/bin/activate" ]; then
-    echo "Activating virtualenv at ${HOME}/.venv..."
+# Activate Python environment on VM03
+if [ -f "/storage/tracka/runtime/venv/bin/activate" ]; then
+    echo "Activating shared cluster venv at /storage/tracka/runtime/venv..."
+    source "/storage/tracka/runtime/venv/bin/activate"
+elif [ -f "${HOME}/.venv/bin/activate" ]; then
     source "${HOME}/.venv/bin/activate"
 elif [ -f "./.venv/bin/activate" ]; then
-    echo "Activating virtualenv at ./.venv..."
     source "./.venv/bin/activate"
 fi
 
-# Locate training script (prefers train_slurm.py, falls back to train.py)
+PYTHON_BIN="python3"
+if [ -f "/storage/tracka/runtime/venv/bin/python3" ]; then
+    PYTHON_BIN="/storage/tracka/runtime/venv/bin/python3"
+fi
+echo "Using Python: $($PYTHON_BIN --version 2>&1) at $PYTHON_BIN"
+
+# Locate training script
 TRAIN_SCRIPT="train_slurm.py"
 if [ ! -f "$TRAIN_SCRIPT" ] && [ -f "train.py" ]; then
     TRAIN_SCRIPT="train.py"
 fi
 
-# Locate training datasets (checks root project dir and data/processed/)
+# Locate training datasets
 TRAIN_DATA="kyc_train.jsonl"
 if [ ! -f "$TRAIN_DATA" ] && [ -f "data/processed/kyc_train.jsonl" ]; then
     TRAIN_DATA="data/processed/kyc_train.jsonl"
@@ -62,15 +69,22 @@ if [ ! -f "$TEST_DATA" ] && [ -f "data/processed/kyc_test.jsonl" ]; then
     TEST_DATA="data/processed/kyc_test.jsonl"
 fi
 
+# Detect cluster base model path if present
+MODEL_ARG="Qwen/Qwen2.5-7B-Instruct"
+if [ -f "/storage/tracka/models/base_model_path.txt" ]; then
+    MODEL_ARG=$(cat /storage/tracka/models/base_model_path.txt | tr -d '\n')
+    echo "Cluster Model Path: $MODEL_ARG"
+fi
+
 echo "Training Script: $TRAIN_SCRIPT"
 echo "Train Data:      $TRAIN_DATA"
 echo "Val Data:        $VAL_DATA"
 echo "Test Data:       $TEST_DATA"
 echo "Output Dir:      $OUTPUT_DIR"
 
-# Execute QLoRA training on Qwen2.5-7B-Instruct
-python3 "$TRAIN_SCRIPT" \
-    --model_name "Qwen/Qwen2.5-7B-Instruct" \
+# Execute QLoRA training on NVIDIA L40S GPU
+$PYTHON_BIN "$TRAIN_SCRIPT" \
+    --model_name "$MODEL_ARG" \
     --train_data "$TRAIN_DATA" \
     --val_data "$VAL_DATA" \
     --test_data "$TEST_DATA" \
@@ -89,7 +103,7 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo " Training job $SLURM_JOB_ID completed successfully!"
     echo " Adapter weights saved to: $OUTPUT_DIR"
     echo " To verify inference on cluster, run:"
-    echo "   python3 infer_slurm.py --adapter_path $OUTPUT_DIR"
+    echo "   sbatch infer.sbatch $OUTPUT_DIR"
 else
     echo " Training job $SLURM_JOB_ID failed with exit code $EXIT_CODE."
 fi

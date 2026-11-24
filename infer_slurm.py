@@ -146,10 +146,18 @@ def extract_regex_standalone(raw_text: str) -> dict:
 
 def main():
     args = parse_args()
+
+    # Detect cluster base model path if present
+    model_name = args.model_name
+    base_file = Path("/storage/tracka/models/base_model_path.txt")
+    is_cluster = base_file.exists() or Path(model_name).exists()
+    if base_file.exists():
+        model_name = base_file.read_text().strip()
+
     print("==========================================================")
     print(" FinKYC Cluster Inference Verification")
     print(f" Python Interpreter: {sys.executable}")
-    print(f" Base Model:         {args.model_name}")
+    print(f" Base Model:         {model_name}")
     print(f" Adapter Path:       {args.adapter_path}")
     print("==========================================================")
 
@@ -186,8 +194,8 @@ def main():
         print(f"\n🖥️ PyTorch installed: Version {torch.__version__} | CUDA: {cuda_available} ({gpu_name})")
     except ImportError:
         print(f"\n⚠️ PyTorch is NOT installed in current Python ({sys.executable}).")
-        print("💡 Tip: On VM03, make sure to activate the cluster virtualenv:")
-        print("   source ~/.venv/bin/activate  (or check 'conda info --envs')")
+        print("💡 Tip: On VM03, activate the shared cluster virtual environment:")
+        print("   source /storage/tracka/runtime/venv/bin/activate")
         print("💡 Or submit an inference job to Slurm:")
         print(f"   sbatch infer.sbatch {args.adapter_path}")
 
@@ -196,21 +204,31 @@ def main():
             print("\n⚠️ CUDA is not accessible from the login shell (Cluster policy blocks login-shell GPU).")
             print("💡 To run GPU inference with the Qwen-2.5 model and trained adapter, run:")
             print(f"   sbatch infer.sbatch {args.adapter_path}")
-            print(f"   or: srun --gres=gpu:1 python3 infer_slurm.py --adapter_path {args.adapter_path}")
         else:
             try:
-                from transformers import AutoModelForCausalLM, AutoTokenizer
+                from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
                 from peft import PeftModel
 
-                print("\n🔄 Loading base model and attaching fine-tuned adapter on GPU...")
-                tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=True)
-                base_model = AutoModelForCausalLM.from_pretrained(
-                    args.model_name,
-                    device_map="auto",
-                    torch_dtype=torch.bfloat16,
-                    trust_remote_code=True,
+                print("\n🔄 Loading base model and attaching fine-tuned adapter on NVIDIA L40S GPU...")
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_name,
+                    local_files_only=is_cluster,
+                    trust_remote_code=False if is_cluster else True,
                 )
-                model = PeftModel.from_pretrained(base_model, args.adapter_path)
+                quant = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                )
+                base_model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    quantization_config=quant,
+                    device_map={'': 0} if is_cluster else "auto",
+                    dtype=torch.bfloat16,
+                    local_files_only=is_cluster,
+                    trust_remote_code=False if is_cluster else True,
+                )
+                model = PeftModel.from_pretrained(base_model, args.adapter_path, local_files_only=True)
                 model.eval()
 
                 prompt = (
@@ -228,7 +246,7 @@ def main():
             except Exception as e:
                 print(f"⚠️ Model load or generation encountered: {e}")
 
-    # Completely self-contained deterministic fallback (zero external dependencies)
+    # Fallback heuristic extraction
     print("\n--- Running Self-Contained Deterministic Heuristic Extraction ---")
     extracted = extract_regex_standalone(sample_ocr)
     print("\n--- Extracted JSON Result ---")
