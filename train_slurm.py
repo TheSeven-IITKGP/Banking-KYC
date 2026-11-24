@@ -194,16 +194,20 @@ def main():
                 bf16=True,
                 save_strategy="epoch",
                 save_total_limit=2,  # Retain only 2 checkpoints to honor 32GB disk quota on VM03
+                report_to="none",
             )
 
-            trainer = SFTTrainer(
-                model=model,
-                train_dataset=hf_dataset,
-                dataset_text_field="text",
-                max_seq_length=1024,
-                tokenizer=tokenizer,
-                args=training_args,
-            )
+            trainer_kwargs = {
+                "model": model,
+                "train_dataset": hf_dataset,
+                "dataset_text_field": "text",
+                "max_seq_length": 1024,
+                "args": training_args,
+            }
+            try:
+                trainer = SFTTrainer(**trainer_kwargs, tokenizer=tokenizer)
+            except (TypeError, ValueError):
+                trainer = SFTTrainer(**trainer_kwargs, processing_class=tokenizer)
 
             print("🔥 Training starting on cluster NVIDIA L40S GPU...")
             trainer.train()
