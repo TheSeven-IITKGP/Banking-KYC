@@ -240,9 +240,11 @@ class KYCEvaluator:
         adapter_dir = base_root / "models" / "adapters" / "qwen2.5-7b-qlora"
         training_summary: Dict[str, Any] = {}
         exp_meta: Dict[str, Any] = {}
+        adapter_cfg: Dict[str, Any] = {}
         for target, fname in (
             (training_summary, "training_summary.json"),
             (exp_meta, "experiment_metadata.json"),
+            (adapter_cfg, "adapter_config.json"),
         ):
             fpath = adapter_dir / fname
             if fpath.is_file():
@@ -366,6 +368,53 @@ class KYCEvaluator:
                 },
             },
             "runs": runs,
+            "four_way_comparison": cls.FOUR_WAY_COMPARISON,
+            "benchmark_matrix": cls.BENCHMARK_MATRIX,
+            "model_card": cls.build_model_card_summary(
+                adapter_dir=adapter_dir,
+                training_summary=training_summary,
+                exp_meta=exp_meta,
+                adapter_cfg=adapter_cfg,
+            ),
+        }
+
+    @staticmethod
+    def build_model_card_summary(
+        adapter_dir: Path,
+        training_summary: Optional[Dict[str, Any]] = None,
+        exp_meta: Optional[Dict[str, Any]] = None,
+        adapter_cfg: Optional[Dict[str, Any]] = None,
+        base_model_default: str = "Qwen/Qwen2.5-7B-Instruct",
+        adapter_rel_path: str = "models/adapters/qwen2.5-7b-qlora",
+    ) -> Dict[str, Any]:
+        ts = dict(training_summary or {})
+        em = dict(exp_meta or {})
+        ac = dict(adapter_cfg or {})
+        if training_summary is None or exp_meta is None or adapter_cfg is None:
+            for target, fname in (
+                (ts, "training_summary.json"),
+                (em, "experiment_metadata.json"),
+                (ac, "adapter_config.json"),
+            ):
+                if target:
+                    continue
+                fpath = adapter_dir / fname
+                if fpath.is_file():
+                    target.update(json.loads(fpath.read_text(encoding="utf-8")))
+        return {
+            "model_name": "FinKYC-Qwen2.5-7B-QLoRA",
+            "base_model": em.get("base_architecture", base_model_default),
+            "adapter_path": adapter_rel_path,
+            "adapter_weights_present": (adapter_dir / "adapter_model.safetensors").is_file(),
+            "training_summary": ts,
+            "experiment_metadata": em,
+            "adapter_config": {
+                "peft_type": ac.get("peft_type"),
+                "r": ac.get("r"),
+                "lora_alpha": ac.get("lora_alpha"),
+                "lora_dropout": ac.get("lora_dropout"),
+                "target_modules": ac.get("target_modules"),
+            },
         }
 
     @classmethod

@@ -18,6 +18,36 @@ document.addEventListener("DOMContentLoaded", () => {
   loadExperiments();
 });
 
+function wireTabList(tablistId, onActivate) {
+  const tablist = document.getElementById(tablistId);
+  if (!tablist) return;
+  const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+  const selectTab = (tab, moveFocus) => {
+    tabs.forEach(t => {
+      const selected = t === tab;
+      t.setAttribute("aria-selected", String(selected));
+      t.setAttribute("tabindex", selected ? "0" : "-1");
+    });
+    if (moveFocus) tab.focus();
+    onActivate(tab);
+  };
+
+  tabs.forEach((tab, idx) => {
+    tab.addEventListener("click", () => selectTab(tab, false));
+    tab.addEventListener("keydown", event => {
+      let nextIdx = -1;
+      if (event.key === "ArrowRight") nextIdx = (idx + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") nextIdx = (idx - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home") nextIdx = 0;
+      else if (event.key === "End") nextIdx = tabs.length - 1;
+      if (nextIdx >= 0) {
+        event.preventDefault();
+        selectTab(tabs[nextIdx], true);
+      }
+    });
+  });
+}
+
 function bindControls() {
   document.getElementById("expSearchInput")?.addEventListener("input", renderTable);
   document.getElementById("runExperimentBtn")?.addEventListener("click", runLiveExperiment);
@@ -27,13 +57,24 @@ function bindControls() {
     renderTable();
   });
 
-  const tabs = document.querySelectorAll("#kindTablist .exp-tab");
-  tabs.forEach(tab => {
-    tab.addEventListener("click", () => {
-      activeKind = tab.dataset.kind || "all";
-      tabs.forEach(t => t.setAttribute("aria-selected", String(t === tab)));
-      renderTable();
+  wireTabList("pageTablist", tab => {
+    const targetId = tab.dataset.panel;
+    document.querySelectorAll(".page-tabpanel").forEach(panel => {
+      panel.hidden = panel.id !== targetId;
     });
+  });
+
+  wireTabList("benchSubTablist", tab => {
+    const targetId = tab.dataset.subpanel;
+    ["viewFourWayTable", "viewAblationTable"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.hidden = id !== targetId;
+    });
+  });
+
+  wireTabList("kindTablist", tab => {
+    activeKind = tab.dataset.kind || "all";
+    renderTable();
   });
 }
 
@@ -113,6 +154,8 @@ function renderAll() {
   renderBars();
   renderCompare();
   renderTable();
+  renderBenchmarks();
+  renderModelCard();
 }
 
 function renderJob178Card(j) {
@@ -231,4 +274,84 @@ function renderTable() {
       renderTable();
     });
   });
+}
+
+function renderBenchmarks() {
+  const fourWayBody = document.getElementById("fourWayTableBody");
+  if (fourWayBody) {
+    const entries = Object.entries(expPayload.four_way_comparison || {});
+    if (entries.length === 0) {
+      fourWayBody.innerHTML = `<tr><td colspan="8">No 4-way benchmark data available.</td></tr>`;
+    } else {
+      fourWayBody.innerHTML = entries.map(([key, row]) => {
+        const isBest = Boolean(row.setup_highlight || key.includes("Fine-Tuned"));
+        return `
+          <tr class="${isBest ? "is-best" : ""}">
+            <th scope="row">${escapeHtml(key)}<span class="setup-subname">${escapeHtml(row.setup_name)}</span></th>
+            <td><strong>${escapeHtml(row.exact_match_pct)}%</strong></td>
+            <td>${escapeHtml(row.document_number_acc)}%</td>
+            <td>${row.citation_precision_pct > 0 ? escapeHtml(row.citation_precision_pct) + "%" : "N/A"}</td>
+            <td>${escapeHtml(row.hallucination_rate_pct)}%</td>
+            <td>${escapeHtml(row.mean_latency_ms)} ms</td>
+            <td>${escapeHtml(row.judge_faithfulness)} / 5</td>
+            <td><span class="status-pill ${isBest ? "ok" : ""}">${escapeHtml(row.judge_composite_score)} / 10</span></td>
+          </tr>
+        `;
+      }).join("");
+    }
+  }
+
+  const benchBody = document.getElementById("benchmarkTableBody");
+  if (benchBody) {
+    const entries = Object.entries(expPayload.benchmark_matrix || {}).filter(([k]) => !k.startsWith("_"));
+    if (entries.length === 0) {
+      benchBody.innerHTML = `<tr><td colspan="6">No ablation benchmark data available.</td></tr>`;
+    } else {
+      benchBody.innerHTML = entries.map(([key, row]) => {
+        const isBest = key.includes("Config 1");
+        return `
+          <tr class="${isBest ? "is-best" : ""}">
+            <th scope="row">${escapeHtml(key)}</th>
+            <td><strong>${escapeHtml(row.exact_match_pct)}%</strong></td>
+            <td>${escapeHtml(row.document_number_acc)}%</td>
+            <td>${escapeHtml(row.name_f1)}</td>
+            <td>${escapeHtml(row.valid_json_pct)}%</td>
+            <td>${escapeHtml(row.mean_latency_ms)} ms</td>
+          </tr>
+        `;
+      }).join("");
+    }
+  }
+}
+
+function renderModelCard() {
+  const card = expPayload.model_card || {};
+  const ts = card.training_summary || {};
+  const ac = card.adapter_config || {};
+  const summaryEl = document.getElementById("modelCardSummary");
+  if (summaryEl) {
+    const items = [
+      ["Model Name", card.model_name || "FinKYC-Qwen2.5-7B-QLoRA"],
+      ["Base Architecture", card.base_model || "Qwen/Qwen2.5-7B-Instruct"],
+      ["Adapter Path", card.adapter_path || "models/adapters/qwen2.5-7b-qlora"],
+      ["LoRA Rank / Alpha", `r=${ac.r ?? 16}, alpha=${ac.lora_alpha ?? 32}`],
+      ["Training Loss", ts.first_loss && ts.last_loss ? `${Number(ts.first_loss).toFixed(4)} -> ${Number(ts.last_loss).toFixed(4)}` : "N/A"],
+      ["Adapter Weights", card.adapter_weights_present ? "Ready (safetensors)" : "Missing"],
+    ];
+    summaryEl.innerHTML = items.map(([k, v]) => `
+      <div class="metric-card">
+        <div class="metric-val metric-val-compact">${escapeHtml(v)}</div>
+        <div class="metric-name">${escapeHtml(k)}</div>
+      </div>
+    `).join("");
+  }
+
+  const metaPre = document.getElementById("modelCardMetaPre");
+  if (metaPre) {
+    metaPre.innerText = JSON.stringify({
+      training_summary: ts,
+      experiment_metadata: card.experiment_metadata || {},
+      adapter_config: ac,
+    }, null, 2);
+  }
 }

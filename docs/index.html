@@ -19,8 +19,17 @@
     </div>
   </header>
 
+  <nav class="page-nav" aria-label="Dashboard sections">
+    <div class="page-tabs" id="pageTablist" role="tablist" aria-label="Experiment dashboard tabs">
+      <button type="button" class="page-tab" id="tabExperiments" role="tab" aria-selected="true" tabindex="0" data-panel="panelExperiments">Experiment Tracking</button>
+      <button type="button" class="page-tab" id="tabBenchmarks" role="tab" aria-selected="false" tabindex="-1" data-panel="panelBenchmarks">Benchmarks &amp; Ablations</button>
+      <button type="button" class="page-tab" id="tabModelCard" role="tab" aria-selected="false" tabindex="-1" data-panel="panelModelCard">Model Card &amp; Deliverables</button>
+    </div>
+  </nav>
+
   <main class="container">
-    <section class="metrics-grid" aria-label="Experiment summary metrics">
+    <section id="panelExperiments" class="page-tabpanel" role="tabpanel" aria-labelledby="tabExperiments">
+      <section class="metrics-grid" aria-label="Experiment summary metrics">
       <div class="metric-card">
         <div class="metric-val" id="kpiTotalRuns">-</div>
         <div class="metric-name">Tracked Runs</div>
@@ -107,7 +116,7 @@
       </div>
 
       <div tabindex="0" role="region" aria-labelledby="expTableCaption" class="exp-table-wrapper">
-        <table class="exp-table">
+        <table class="exp-table exp-runs-table">
           <caption id="expTableCaption">Tracked training, ablation, 4-way benchmark, and live evaluation runs</caption>
           <thead>
             <tr>
@@ -127,6 +136,106 @@
           <tbody id="expTableBody"></tbody>
         </table>
       </div>
+    </section>
+    </section>
+
+    <section id="panelBenchmarks" class="page-tabpanel" role="tabpanel" aria-labelledby="tabBenchmarks" hidden>
+      <section class="card">
+        <div class="row-between">
+          <div>
+            <h2>Benchmarks &amp; Ablations</h2>
+            <p class="section-desc">Compare the 4-Way RAG + Fine-Tuning architecture matrix against Track A QLoRA hyperparameter ablations.</p>
+          </div>
+          <div class="exp-tabs" id="benchSubTablist" role="tablist" aria-label="Benchmark views">
+            <button type="button" class="exp-tab" id="subtabFourWay" role="tab" aria-selected="true" tabindex="0" data-subpanel="viewFourWayTable">4-Way Setup Comparison</button>
+            <button type="button" class="exp-tab" id="subtabAblation" role="tab" aria-selected="false" tabindex="-1" data-subpanel="viewAblationTable">QLoRA Parameter Ablations</button>
+          </div>
+        </div>
+
+        <div id="viewFourWayTable" role="tabpanel" aria-labelledby="subtabFourWay">
+          <div tabindex="0" role="region" aria-labelledby="fourWayCaption" class="exp-table-wrapper">
+            <table class="exp-table">
+              <caption id="fourWayCaption">Base Model vs Base+RAG vs Fine-Tuned vs Fine-Tuned+RAG evaluation comparison</caption>
+              <thead>
+                <tr>
+                  <th>Setup</th>
+                  <th>EM %</th>
+                  <th>Doc ID %</th>
+                  <th>Citation %</th>
+                  <th>Halluc %</th>
+                  <th>Mean Latency</th>
+                  <th>Faithfulness</th>
+                  <th>Composite Score</th>
+                </tr>
+              </thead>
+              <tbody id="fourWayTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="viewAblationTable" role="tabpanel" aria-labelledby="subtabAblation" hidden>
+          <div tabindex="0" role="region" aria-labelledby="ablationCaption" class="exp-table-wrapper">
+            <table class="exp-table">
+              <caption id="ablationCaption">Track A QLoRA hyperparameter ablation configurations evaluated on held-out KYC records</caption>
+              <thead>
+                <tr>
+                  <th>Configuration</th>
+                  <th>Exact Match %</th>
+                  <th>Doc Number Acc %</th>
+                  <th>Name F1</th>
+                  <th>Valid JSON %</th>
+                  <th>Mean Latency</th>
+                </tr>
+              </thead>
+              <tbody id="benchmarkTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="panelModelCard" class="page-tabpanel" role="tabpanel" aria-labelledby="tabModelCard" hidden>
+      <section class="card">
+        <div>
+          <h2>Job-178 Fine-Tuned Model Card</h2>
+          <p class="section-desc">Track A QLoRA adapter lineage, base model architecture, and training convergence telemetry.</p>
+        </div>
+        <div id="modelCardSummary" class="metrics-grid metrics-grid-3col"></div>
+      </section>
+
+      <section class="grid-2col">
+        <div class="card">
+          <h2>Responsible AI &amp; Failure Policy</h2>
+          <p class="section-desc">Deterministic safety and compliance guardrails enforced around model inference.</p>
+          <ul class="policy-list">
+            <li><strong>Mandatory PII Redaction:</strong> <code>PIIRedactor</code> masks Aadhaar numbers, PAN IDs, and mobile numbers before outbound inference calls.</li>
+            <li><strong>Grounded RBI Citations:</strong> Regulatory Q&amp;A responses cite retrieved RBI Master Direction 2016 paragraphs from the FAISS index.</li>
+            <li><strong>Escalation on Low Confidence:</strong> Blurry scans, missing IDs, or name mismatches route to <code>NEEDS_MANUAL_REVIEW</code> rather than guessing.</li>
+            <li><strong>Zero Raw Document Retention:</strong> Uploaded document buffers are processed transiently in memory without unencrypted persistence.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h2>Capstone Deliverables Checklist</h2>
+          <p class="section-desc">Verified repository artifacts powering the FinKYC pipeline and static dashboard.</p>
+          <ul class="deliverables-list">
+            <li><span><code>models/adapters/qwen2.5-7b-qlora/</code> Track A QLoRA Adapter Weights</span><span class="status-pill ok">READY</span></li>
+            <li><span><code>banking_kyc/finetuning/evaluator.py</code> 4-Way &amp; Ablation Evaluator</span><span class="status-pill ok">VERIFIED</span></li>
+            <li><span><code>banking_kyc/rag/retriever.py</code> RBI Master Direction FAISS Index</span><span class="status-pill ok">VERIFIED</span></li>
+            <li><span><code>banking_kyc/security/outbound_redactor.py</code> Pre-Inference PII Guardrail</span><span class="status-pill ok">VERIFIED</span></li>
+            <li><span><code>docs/experiments.json</code> Static GitHub Pages Telemetry Snapshot</span><span class="status-pill ok">SYNCED</span></li>
+            <li><span><code>MODEL_CARD.md</code> Architecture, Compute &amp; Intended Use Docs</span><span class="status-pill ok">VERIFIED</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="card">
+        <div>
+          <h2>Raw Training Metadata &amp; Adapter Config (JSON)</h2>
+          <p class="section-desc">Direct serialization of <code>training_summary.json</code>, <code>experiment_metadata.json</code>, and <code>adapter_config.json</code>.</p>
+        </div>
+        <pre id="modelCardMetaPre" class="meta-pre">Loading...</pre>
+      </section>
     </section>
   </main>
 

@@ -654,36 +654,15 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
         root_dir = Path(__file__).resolve().parent.parent.parent
         cfg = get_config()
         adapter_dir = root_dir / cfg.adapter_path
-        training_summary: Dict[str, Any] = {}
-        exp_meta: Dict[str, Any] = {}
-        adapter_cfg: Dict[str, Any] = {}
-        for target, fname in (
-            (training_summary, "training_summary.json"),
-            (exp_meta, "experiment_metadata.json"),
-            (adapter_cfg, "adapter_config.json"),
-        ):
-            fpath = adapter_dir / fname
-            if fpath.is_file():
-                target.update(json.loads(fpath.read_text(encoding="utf-8")))
+        payload = KYCEvaluator.build_model_card_summary(
+            adapter_dir=adapter_dir,
+            base_model_default=cfg.finetuned_base_model,
+            adapter_rel_path=str(cfg.adapter_path),
+        )
         card_path = root_dir / "MODEL_CARD.md"
-        card_markdown = card_path.read_text(encoding="utf-8") if card_path.is_file() else ""
-        return {
-            "model_name": "FinKYC-Qwen2.5-7B-QLoRA",
-            "base_model": exp_meta.get("base_architecture", cfg.finetuned_base_model),
-            "smaller_base_model": cfg.base_small_model,
-            "adapter_path": str(cfg.adapter_path),
-            "adapter_weights_present": (adapter_dir / "adapter_model.safetensors").is_file(),
-            "training_summary": training_summary,
-            "experiment_metadata": exp_meta,
-            "adapter_config": {
-                "peft_type": adapter_cfg.get("peft_type"),
-                "r": adapter_cfg.get("r"),
-                "lora_alpha": adapter_cfg.get("lora_alpha"),
-                "lora_dropout": adapter_cfg.get("lora_dropout"),
-                "target_modules": adapter_cfg.get("target_modules"),
-            },
-            "model_card_markdown": card_markdown,
-        }
+        payload["smaller_base_model"] = cfg.base_small_model
+        payload["model_card_markdown"] = card_path.read_text(encoding="utf-8") if card_path.is_file() else ""
+        return payload
 
     def _send_json(self, status_code: int, data: Dict[str, Any]):
         response_bytes = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")

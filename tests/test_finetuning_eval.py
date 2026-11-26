@@ -395,13 +395,23 @@ class TestFineTuningAndEval(unittest.TestCase):
         snapshot = json.loads((docs_dir / "experiments.json").read_text(encoding="utf-8"))
 
         self.assertGreaterEqual(snapshot["summary"]["total_runs"], 9)
+        self.assertIn("Fine-Tuned Model + RAG", snapshot["four_way_comparison"])
+        self.assertIn("Fine-Tuned Config 1 (QLoRA r=16, alpha=32)", snapshot["benchmark_matrix"])
+        self.assertEqual(snapshot["model_card"]["model_name"], "FinKYC-Qwen2.5-7B-QLoRA")
         run_ids = {r["run_id"] for r in snapshot["runs"]}
         self.assertIn("JOB-178-QLORA", run_ids)
         self.assertIn("SETUP-FT-RAG", run_ids)
         self.assertIn('role="region"', pages_html)
+        self.assertIn('role="tabpanel"', pages_html)
+        self.assertIn("panelBenchmarks", pages_html)
+        self.assertIn("panelModelCard", pages_html)
+        self.assertIn("fourWayTableBody", pages_html)
+        self.assertIn("benchmarkTableBody", pages_html)
+        self.assertIn("modelCardSummary", pages_html)
         self.assertIn("<progress", pages_js)
         self.assertIn("experiments.json", pages_js)
         self.assertNotIn("1.5B", pages_html)
+        self.assertNotIn("1.5B", json.dumps(snapshot))
         self.assertNotIn("Lead Engineer", pages_html)
 
         for legacy in ("#1e3a8a", "#2563eb", "#0f172a", "#eff6ff"):
@@ -439,6 +449,9 @@ class TestFineTuningAndEval(unittest.TestCase):
             self.assertEqual(c_get, 200)
             exp_data = json.loads(b_get)
             self.assertGreaterEqual(exp_data["summary"]["total_runs"], 9)
+            self.assertIn("four_way_comparison", exp_data)
+            self.assertIn("benchmark_matrix", exp_data)
+            self.assertIn("model_card", exp_data)
 
             c_run, _, b_run = call_http("POST", "/api/experiments/run", {"config_name": "config_1_balanced", "sample_limit": 25})
             self.assertEqual(c_run, 200)
