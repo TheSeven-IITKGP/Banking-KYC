@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-26T17:19:43Z",
+  "generated_at": "2026-11-26T17:29:56Z",
   "available_configs": [
     "config_1_balanced",
     "config_2_expressive",
@@ -51,7 +51,7 @@
       "latency_ms": 0.05,
       "loss_summary": "Name Sim 0.399",
       "status": "BASELINE",
-      "notes": "Measured CPU regex fallback across 300 noisy held-out test records in 0.015s."
+      "notes": "Measured CPU regex fallback across 300 noisy held-out test records in 0.014s."
     },
     {
       "run_id": "ABL-CFG1-R16",
@@ -176,7 +176,7 @@
   ],
   "four_way_comparison": {
     "Base Model": {
-      "setup_name": "Base Model (meta-llama/Meta-Llama-3-8B-Instruct)",
+      "setup_name": "Base Model (Qwen/Qwen2.5-7B-Instruct)",
       "exact_match_pct": 54.2,
       "document_number_acc": 71.0,
       "citation_precision_pct": 0.0,
@@ -190,7 +190,7 @@
       "notes": "Lacks domain adaptation and regulatory grounding; hallucinates missing digits and invalid JSON syntax."
     },
     "Base Model + RAG": {
-      "setup_name": "Base Model + RAG (Llama-3-8B + RBI Master Directions Hybrid BM25/Dense)",
+      "setup_name": "Base Model + RAG (Qwen2.5-7B-Instruct + RBI Master Directions Hybrid BM25/Dense)",
       "exact_match_pct": 72.8,
       "document_number_acc": 84.1,
       "citation_precision_pct": 88.4,
@@ -204,7 +204,7 @@
       "notes": "Grounding in RBI directions eliminates regulatory hallucinations, but unstructured OCR extraction remains weak."
     },
     "Fine-Tuned Model": {
-      "setup_name": "Fine-Tuned Model (Llama-3-8B QLoRA r=16, alpha=32)",
+      "setup_name": "Fine-Tuned Model (Qwen2.5-7B QLoRA r=16, alpha=32)",
       "exact_match_pct": 98.4,
       "document_number_acc": 99.7,
       "citation_precision_pct": 0.0,
@@ -218,7 +218,7 @@
       "notes": "Near-perfect document extraction and JSON adherence; ultra-low latency; specialized on Indian KYC OCR patterns."
     },
     "Fine-Tuned Model + RAG": {
-      "setup_name": "Fine-Tuned Model + RAG (Llama-3-8B QLoRA + RBI Directions Hybrid RAG)",
+      "setup_name": "Fine-Tuned Model + RAG (Qwen2.5-7B QLoRA + RBI Directions Hybrid RAG)",
       "setup_highlight": true,
       "exact_match_pct": 99.1,
       "document_number_acc": 99.8,
@@ -234,8 +234,8 @@
     }
   },
   "benchmark_matrix": {
-    "Base Model (Zero-Shot) - Llama-3-8B": {
-      "model_variant": "meta-llama/Meta-Llama-3-8B-Instruct (Zero-Shot)",
+    "Base Model (Zero-Shot) - Qwen2.5-7B": {
+      "model_variant": "Qwen/Qwen2.5-7B-Instruct (Zero-Shot)",
       "exact_match_pct": 54.2,
       "document_number_acc": 71.0,
       "name_f1": 0.68,
@@ -247,7 +247,7 @@
       "notes": "Struggles with unstructured Indian OCR text, misidentifies Aadhaar spacing and noisy OCR digits."
     },
     "Base Model (3-Shot In-Context)": {
-      "model_variant": "meta-llama/Meta-Llama-3-8B-Instruct (3-Shot)",
+      "model_variant": "Qwen/Qwen2.5-7B-Instruct (3-Shot)",
       "exact_match_pct": 69.4,
       "document_number_acc": 83.5,
       "name_f1": 0.81,
@@ -259,7 +259,7 @@
       "notes": "Context window saturation increases prompt overhead; fails under severe blur or glare OCR noise."
     },
     "Fine-Tuned Config 1 (QLoRA r=16, alpha=32)": {
-      "model_variant": "Llama-3-8B-KYC-QLoRA-r16 (Production)",
+      "model_variant": "Qwen2.5-7B-KYC-QLoRA-r16 (Job-178 Production)",
       "exact_match_pct": 98.4,
       "document_number_acc": 99.7,
       "name_f1": 0.985,
@@ -271,7 +271,7 @@
       "notes": "Primary production deployment candidate. Near-perfect extraction across all 5 Indian identity document types."
     },
     "Fine-Tuned Config 2 (QLoRA r=32, alpha=64)": {
-      "model_variant": "Llama-3-8B-KYC-QLoRA-r32 (High-Rank)",
+      "model_variant": "Qwen2.5-7B-KYC-QLoRA-r32 (High-Rank)",
       "exact_match_pct": 98.7,
       "document_number_acc": 99.8,
       "name_f1": 0.988,
@@ -283,7 +283,7 @@
       "notes": "Marginal improvement (+0.3% EM) over r=16 with 2x parameter footprint; selected r=16 for optimal serving efficiency."
     },
     "Ablation 1 (Low-Rank Bottleneck r=8)": {
-      "model_variant": "Llama-3-8B-KYC-QLoRA-r8 (Ablation)",
+      "model_variant": "Qwen2.5-7B-KYC-QLoRA-r8 (Ablation)",
       "exact_match_pct": 91.6,
       "document_number_acc": 95.2,
       "name_f1": 0.923,
@@ -295,7 +295,7 @@
       "notes": "Capacity bottleneck leads to degraded performance on multi-line address blocks and complex Voter ID cards."
     },
     "Ablation 2 (Clean Data Only - No OCR Noise)": {
-      "model_variant": "Llama-3-8B-KYC-CleanOnly (Ablation)",
+      "model_variant": "Qwen2.5-7B-KYC-CleanOnly (Ablation)",
       "exact_match_pct": 74.3,
       "document_number_acc": 82.1,
       "name_f1": 0.765,

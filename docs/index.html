@@ -4,24 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
-  <title>FinKYC - Experiment Tracking Dashboard</title>
-  <link rel="stylesheet" href="./styles.css">
+  <title>FinKYC - Static Evaluation &amp; Model Card Dashboard</title>
+  <link rel="stylesheet" href="./styles.css?v=20261126b">
 </head>
 <body>
   <header class="app-header">
     <div>
-      <h1>FinKYC Experiment Tracking Dashboard</h1>
-      <p class="subtitle">Track A QLoRA Fine-Tuning Runs · Parameter Ablations · 4-Way RAG Benchmarks · Held-Out Evaluations</p>
+      <h1>FinKYC Static Evaluation &amp; Model Card</h1>
+      <p class="subtitle">Latest Qwen2.5-7B QLoRA Evaluations &middot; 4-Way RAG Benchmarks &middot; Job-178 Model Card</p>
     </div>
     <div class="header-meta">
-      <span class="badge" id="modeBadge">Static Snapshot</span>
+      <span class="badge">Static Snapshot</span>
       <span class="badge" id="generatedAtBadge">Loading...</span>
     </div>
   </header>
 
   <nav class="page-nav" aria-label="Dashboard sections">
-    <div class="page-tabs" id="pageTablist" role="tablist" aria-label="Experiment dashboard tabs">
-      <button type="button" class="page-tab" id="tabExperiments" role="tab" aria-selected="true" tabindex="0" data-panel="panelExperiments">Experiment Tracking</button>
+    <div class="page-tabs" id="pageTablist" role="tablist" aria-label="Evaluation report tabs">
+      <button type="button" class="page-tab" id="tabExperiments" role="tab" aria-selected="true" tabindex="0" data-panel="panelExperiments">Latest Evaluations</button>
       <button type="button" class="page-tab" id="tabBenchmarks" role="tab" aria-selected="false" tabindex="-1" data-panel="panelBenchmarks">Benchmarks &amp; Ablations</button>
       <button type="button" class="page-tab" id="tabModelCard" role="tab" aria-selected="false" tabindex="-1" data-panel="panelModelCard">Model Card &amp; Deliverables</button>
     </div>
@@ -29,114 +29,66 @@
 
   <main class="container">
     <section id="panelExperiments" class="page-tabpanel" role="tabpanel" aria-labelledby="tabExperiments">
-      <section class="metrics-grid" aria-label="Experiment summary metrics">
-      <div class="metric-card">
-        <div class="metric-val" id="kpiTotalRuns">-</div>
-        <div class="metric-name">Tracked Runs</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val" id="kpiBestEm">-</div>
-        <div class="metric-name">Best Exact Match</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val" id="kpiTrainLoss">-</div>
-        <div class="metric-name">Job-178 Final Loss</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val" id="kpiMeanLatency">-</div>
-        <div class="metric-name">Mean Latency</div>
-      </div>
-    </section>
+      <section class="metrics-grid" aria-label="Evaluation summary metrics">
+        <div class="metric-card">
+          <div class="metric-val" id="kpiTotalRuns">-</div>
+          <div class="metric-name">Tracked Evaluations</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="kpiBestEm">-</div>
+          <div class="metric-name">Best Exact Match</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="kpiTrainLoss">-</div>
+          <div class="metric-name">Job-178 Final Loss</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-val" id="kpiMeanLatency">-</div>
+          <div class="metric-name">Mean Latency</div>
+        </div>
+      </section>
 
-    <section class="card" id="liveRunnerCard" hidden>
-      <div class="row-between">
+      <section class="grid-2col">
+        <div class="card">
+          <h2>Exact Match &amp; Accuracy Overview</h2>
+          <p class="section-desc">Static evaluation scores across the latest Slurm Job-178 run, 4-Way setups, and held-out records.</p>
+          <div id="expBarsContainer" class="bars-list"></div>
+        </div>
+
+        <div class="card">
+          <h2>Slurm Job-178 Training Snapshot</h2>
+          <p class="section-desc">Recorded adapter training telemetry from <code>models/adapters/qwen2.5-7b-qlora/</code>.</p>
+          <dl id="job178Details" class="kv-grid"></dl>
+        </div>
+      </section>
+
+      <section class="card">
         <div>
-          <h2>Live Held-Out Experiment Runner</h2>
-          <p class="section-desc">Execute real deterministic evaluation across <code>data/processed/kyc_test.jsonl</code> and log a new tracked run.</p>
+          <h2>Latest Evaluations Summary</h2>
+          <p class="section-desc">Read-only snapshot generated from the latest held-out KYC dataset, Job-178 checkpoint, and benchmark suite.</p>
         </div>
-        <div class="runner-controls">
-          <label for="expConfigSelect" class="visually-hidden">Configuration</label>
-          <select id="expConfigSelect"></select>
-          <label for="expLimitSelect" class="visually-hidden">Sample Count</label>
-          <select id="expLimitSelect">
-            <option value="50">50 records</option>
-            <option value="100" selected>100 records</option>
-            <option value="300">300 records</option>
-          </select>
-          <button type="button" id="runExperimentBtn" class="btn btn-primary">Run &amp; Log Experiment</button>
+        <div id="expLoadError" class="error-note" role="status" aria-live="polite" hidden></div>
+        <div tabindex="0" role="region" aria-labelledby="expTableCaption" class="exp-table-wrapper">
+          <table class="exp-table exp-runs-table">
+            <caption id="expTableCaption">Static evaluation snapshot for Job-178, 4-way RAG setups, ablations, and held-out records</caption>
+            <thead>
+              <tr>
+                <th>Run ID</th>
+                <th>Category</th>
+                <th>Configuration / Setup</th>
+                <th>Hyperparameters</th>
+                <th>EM %</th>
+                <th>Doc ID %</th>
+                <th>Halluc %</th>
+                <th>Latency</th>
+                <th>Signal / Loss</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="expTableBody"></tbody>
+          </table>
         </div>
-      </div>
-      <div id="expStatusMsg" class="status-note" role="status" aria-live="polite"></div>
-    </section>
-
-    <section class="grid-2col">
-      <div class="card">
-        <h2>Exact Match &amp; Accuracy Comparison</h2>
-        <p class="section-desc">Visual comparison of Exact Match % across tracked setups and QLoRA ablation runs.</p>
-        <div id="expBarsContainer" class="bars-list"></div>
-      </div>
-
-      <div class="card">
-        <h2>Slurm Job-178 Training Snapshot</h2>
-        <p class="section-desc">Recorded adapter training telemetry from <code>models/adapters/qwen2.5-7b-qlora/</code>.</p>
-        <dl id="job178Details" class="kv-grid"></dl>
-      </div>
-    </section>
-
-    <section class="card" id="expCompareCard" hidden>
-      <div class="row-between">
-        <div>
-          <h2>Side-by-Side Run Comparison</h2>
-          <p class="section-desc">Comparing two checked runs across hyperparameters and benchmark deltas.</p>
-        </div>
-        <button type="button" id="clearCompareBtn" class="btn btn-secondary btn-sm">Clear Selection</button>
-      </div>
-      <div id="expCompareBody" class="compare-grid"></div>
-    </section>
-
-    <section class="card">
-      <div class="row-between">
-        <div>
-          <h2>Experiment Runs Registry</h2>
-          <p class="section-desc">Select any two runs with checkboxes to inspect metric deltas side-by-side.</p>
-        </div>
-        <div class="filter-controls">
-          <label for="expSearchInput" class="visually-hidden">Filter experiments</label>
-          <input type="search" id="expSearchInput" placeholder="Search run ID, model, hyperparameter...">
-        </div>
-      </div>
-
-      <div class="exp-tabs" id="kindTablist" role="tablist" aria-label="Filter runs by category">
-        <button type="button" class="exp-tab" role="tab" aria-selected="true" data-kind="all">All Runs</button>
-        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Training Run">Training Run</button>
-        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Ablation Study">Ablations</button>
-        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="4-Way Setup">4-Way Setups</button>
-        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Held-Out Eval">Held-Out Eval</button>
-        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Live Verification">Live Traces</button>
-      </div>
-
-      <div tabindex="0" role="region" aria-labelledby="expTableCaption" class="exp-table-wrapper">
-        <table class="exp-table exp-runs-table">
-          <caption id="expTableCaption">Tracked training, ablation, 4-way benchmark, and live evaluation runs</caption>
-          <thead>
-            <tr>
-              <th>Compare</th>
-              <th>Run ID</th>
-              <th>Kind</th>
-              <th>Configuration / Setup</th>
-              <th>Hyperparameters</th>
-              <th>EM %</th>
-              <th>Doc ID %</th>
-              <th>Halluc %</th>
-              <th>Latency</th>
-              <th>Signal / Loss</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="expTableBody"></tbody>
-        </table>
-      </div>
-    </section>
+      </section>
     </section>
 
     <section id="panelBenchmarks" class="page-tabpanel" role="tabpanel" aria-labelledby="tabBenchmarks" hidden>
@@ -144,7 +96,7 @@
         <div class="row-between">
           <div>
             <h2>Benchmarks &amp; Ablations</h2>
-            <p class="section-desc">Compare the 4-Way RAG + Fine-Tuning architecture matrix against Track A QLoRA hyperparameter ablations.</p>
+            <p class="section-desc">Static comparison across the 4-Way RAG + Fine-Tuning setups and Track A QLoRA hyperparameter ablations.</p>
           </div>
           <div class="exp-tabs" id="benchSubTablist" role="tablist" aria-label="Benchmark views">
             <button type="button" class="exp-tab" id="subtabFourWay" role="tab" aria-selected="true" tabindex="0" data-subpanel="viewFourWayTable">4-Way Setup Comparison</button>
@@ -210,7 +162,7 @@
           <ul class="policy-list">
             <li><strong>Mandatory PII Redaction:</strong> <code>PIIRedactor</code> masks Aadhaar numbers, PAN IDs, and mobile numbers before outbound inference calls.</li>
             <li><strong>Grounded RBI Citations:</strong> Regulatory Q&amp;A responses cite retrieved RBI Master Direction 2016 paragraphs from the FAISS index.</li>
-            <li><strong>Escalation on Low Confidence:</strong> Blurry scans, missing IDs, or name mismatches route to <code>NEEDS_MANUAL_REVIEW</code> rather than guessing.</li>
+            <li><strong>Escalation on Low Confidence:</strong> Blurry scans, missing IDs, or name mismatches route to <code>MANUAL_REVIEW_OR_REJECT</code> rather than guessing.</li>
             <li><strong>Zero Raw Document Retention:</strong> Uploaded document buffers are processed transiently in memory without unencrypted persistence.</li>
           </ul>
         </div>
@@ -221,7 +173,7 @@
           <ul class="deliverables-list">
             <li><span><code>models/adapters/qwen2.5-7b-qlora/</code> Track A QLoRA Adapter Weights</span><span class="status-pill ok">READY</span></li>
             <li><span><code>banking_kyc/finetuning/evaluator.py</code> 4-Way &amp; Ablation Evaluator</span><span class="status-pill ok">VERIFIED</span></li>
-            <li><span><code>banking_kyc/rag/retriever.py</code> RBI Master Direction FAISS Index</span><span class="status-pill ok">VERIFIED</span></li>
+            <li><span><code>src/kycrag/retrieve.py</code> RBI Master Direction Hybrid RAG Index</span><span class="status-pill ok">VERIFIED</span></li>
             <li><span><code>banking_kyc/security/outbound_redactor.py</code> Pre-Inference PII Guardrail</span><span class="status-pill ok">VERIFIED</span></li>
             <li><span><code>docs/experiments.json</code> Static GitHub Pages Telemetry Snapshot</span><span class="status-pill ok">SYNCED</span></li>
             <li><span><code>MODEL_CARD.md</code> Architecture, Compute &amp; Intended Use Docs</span><span class="status-pill ok">VERIFIED</span></li>
@@ -239,6 +191,7 @@
     </section>
   </main>
 
-  <script src="./app.js"></script>
+  <script src="./snapshot.js?v=20261126b"></script>
+  <script src="./app.js?v=20261126b"></script>
 </body>
 </html>

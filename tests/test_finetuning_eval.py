@@ -408,10 +408,14 @@ class TestFineTuningAndEval(unittest.TestCase):
         self.assertIn("fourWayTableBody", pages_html)
         self.assertIn("benchmarkTableBody", pages_html)
         self.assertIn("modelCardSummary", pages_html)
+        self.assertNotIn("liveRunnerCard", pages_html)
+        self.assertNotIn("expSearchInput", pages_html)
+        self.assertNotIn("/api/experiments", pages_js)
         self.assertIn("<progress", pages_js)
         self.assertIn("experiments.json", pages_js)
         self.assertNotIn("1.5B", pages_html)
         self.assertNotIn("1.5B", json.dumps(snapshot))
+        self.assertNotIn("Llama-3-8B", json.dumps(snapshot))
         self.assertNotIn("Lead Engineer", pages_html)
 
         for legacy in ("#1e3a8a", "#2563eb", "#0f172a", "#eff6ff"):
@@ -465,7 +469,7 @@ class TestFineTuningAndEval(unittest.TestCase):
 
             c_page, _, b_page = call_http("GET", "/experiments/")
             self.assertEqual(c_page, 200)
-            self.assertIn("FinKYC Experiment Tracking Dashboard", b_page)
+            self.assertIn("FinKYC Static Evaluation", b_page)
         finally:
             KYCAPIRequestHandler._experiment_runs[:] = prev_runs
 

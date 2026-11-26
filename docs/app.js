@@ -1,7 +1,4 @@
 let expPayload = null;
-let activeKind = "all";
-let selectedRunIds = [];
-let liveApiAvailable = false;
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({
@@ -12,11 +9,6 @@ function escapeHtml(s) {
     "'": "&#39;"
   }[c]));
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-  bindControls();
-  loadExperiments();
-});
 
 function wireTabList(tablistId, onActivate) {
   const tablist = document.getElementById(tablistId);
@@ -48,15 +40,7 @@ function wireTabList(tablistId, onActivate) {
   });
 }
 
-function bindControls() {
-  document.getElementById("expSearchInput")?.addEventListener("input", renderTable);
-  document.getElementById("runExperimentBtn")?.addEventListener("click", runLiveExperiment);
-  document.getElementById("clearCompareBtn")?.addEventListener("click", () => {
-    selectedRunIds = [];
-    renderCompare();
-    renderTable();
-  });
-
+function initDashboard() {
   wireTabList("pageTablist", tab => {
     const targetId = tab.dataset.panel;
     document.querySelectorAll(".page-tabpanel").forEach(panel => {
@@ -72,60 +56,37 @@ function bindControls() {
     });
   });
 
-  wireTabList("kindTablist", tab => {
-    activeKind = tab.dataset.kind || "all";
-    renderTable();
-  });
+  loadExperiments();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initDashboard);
+} else {
+  initDashboard();
 }
 
 async function loadExperiments() {
-  try {
-    const apiRes = await fetch("/api/experiments", { cache: "no-store" });
-    if (apiRes.ok) {
-      expPayload = await apiRes.json();
-      liveApiAvailable = true;
-      document.getElementById("modeBadge").innerText = "Live API Connected";
-      renderAll();
-      return;
-    }
-  } catch (_) {}
-
-  try {
-    const staticRes = await fetch("./experiments.json", { cache: "no-store" });
-    if (!staticRes.ok) throw new Error(`HTTP ${staticRes.status}`);
-    expPayload = await staticRes.json();
-    liveApiAvailable = false;
-    document.getElementById("modeBadge").innerText = "GitHub Pages Snapshot";
+  const errEl = document.getElementById("expLoadError");
+  if (typeof window !== "undefined" && window.FINKYC_SNAPSHOT) {
+    expPayload = window.FINKYC_SNAPSHOT;
+    if (errEl) errEl.hidden = true;
     renderAll();
-  } catch (err) {
-    document.getElementById("modeBadge").innerText = "Load Error";
-    document.getElementById("expTableBody").innerHTML = `<tr><td colspan="11">Failed to load experiments data: ${escapeHtml(err.message)}</td></tr>`;
   }
-}
-
-async function runLiveExperiment() {
-  if (!liveApiAvailable) return;
-  const btn = document.getElementById("runExperimentBtn");
-  const statusEl = document.getElementById("expStatusMsg");
-  const cfg = document.getElementById("expConfigSelect").value;
-  const limit = parseInt(document.getElementById("expLimitSelect").value, 10) || 100;
-  btn.disabled = true;
-  statusEl.innerText = `Running held-out benchmark for ${cfg} (${limit} records)...`;
   try {
-    const res = await fetch("/api/experiments/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ config_name: cfg, sample_limit: limit }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    expPayload = data.dashboard;
+    const res = await fetch("./experiments.json?v=20261126b", { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    expPayload = await res.json();
+    if (errEl) errEl.hidden = true;
     renderAll();
-    statusEl.innerText = `Logged ${data.run.run_id}: ${data.run.exact_match_pct}% Exact Match across ${limit} records.`;
   } catch (err) {
-    statusEl.innerText = `Experiment failed: ${err.message}`;
-  } finally {
-    btn.disabled = false;
+    if (!expPayload) {
+      if (errEl) {
+        errEl.innerText = `Unable to load static snapshot ./experiments.json (${err.message}). Open via GitHub Pages or an HTTP server.`;
+        errEl.hidden = false;
+      }
+      const tbody = document.getElementById("expTableBody");
+      if (tbody) tbody.innerHTML = `<tr><td colspan="10">Failed to load static evaluation data.</td></tr>`;
+    }
   }
 }
 
@@ -138,21 +99,8 @@ function renderAll() {
   document.getElementById("kpiTrainLoss").innerText = summary.lowest_train_loss ?? "N/A";
   document.getElementById("kpiMeanLatency").innerText = `${summary.mean_latency_ms ?? 0} ms`;
 
-  const runnerCard = document.getElementById("liveRunnerCard");
-  runnerCard.hidden = !liveApiAvailable;
-  const cfgSel = document.getElementById("expConfigSelect");
-  if (cfgSel && cfgSel.options.length === 0) {
-    for (const key of (expPayload.available_configs || [])) {
-      const opt = document.createElement("option");
-      opt.value = key;
-      opt.textContent = key;
-      cfgSel.appendChild(opt);
-    }
-  }
-
   renderJob178Card(summary.job178 || {});
   renderBars();
-  renderCompare();
   renderTable();
   renderBenchmarks();
   renderModelCard();
@@ -160,6 +108,7 @@ function renderAll() {
 
 function renderJob178Card(j) {
   const el = document.getElementById("job178Details");
+  if (!el) return;
   const rows = [
     ["Job ID", `Slurm #${j.job_id || "178"}`],
     ["Base Architecture", j.base_model || "Qwen2.5-7B-Instruct"],
@@ -178,14 +127,15 @@ function renderJob178Card(j) {
 
 function renderBars() {
   const container = document.getElementById("expBarsContainer");
-  const chartRuns = (expPayload.runs || []).filter(r => r.kind !== "Live Verification").slice(0, 10);
-  container.innerHTML = chartRuns.map((r, idx) => {
+  if (!container) return;
+  const runs = expPayload.runs || [];
+  container.innerHTML = runs.map((r, idx) => {
     const progId = `prog-${idx}`;
     const em = Number(r.exact_match_pct ?? 0);
     return `
       <div class="bar-row">
         <div class="bar-meta">
-          <label for="${progId}"><strong>${escapeHtml(r.run_id)}</strong> · ${escapeHtml(r.name)}</label>
+          <label for="${progId}"><strong>${escapeHtml(r.run_id)}</strong> &middot; ${escapeHtml(r.name)}</label>
           <span><strong>${escapeHtml(em)}%</strong> EM</span>
         </div>
         <progress id="${progId}" class="exp-progress" max="100" value="${escapeHtml(em)}"></progress>
@@ -194,57 +144,20 @@ function renderBars() {
   }).join("");
 }
 
-function renderCompare() {
-  const card = document.getElementById("expCompareCard");
-  const body = document.getElementById("expCompareBody");
-  if (selectedRunIds.length !== 2) {
-    card.hidden = true;
-    return;
-  }
-  const runs = expPayload.runs || [];
-  const a = runs.find(r => r.run_id === selectedRunIds[0]);
-  const b = runs.find(r => r.run_id === selectedRunIds[1]);
-  if (!a || !b) {
-    card.hidden = true;
-    return;
-  }
-  const emDelta = (Number(b.exact_match_pct || 0) - Number(a.exact_match_pct || 0)).toFixed(1);
-  const latDelta = (Number(b.latency_ms || 0) - Number(a.latency_ms || 0)).toFixed(1);
-  card.hidden = false;
-  body.innerHTML = [a, b].map((r, idx) => `
-    <div class="compare-panel">
-      <strong>${idx === 0 ? "Baseline" : "Candidate"}: ${escapeHtml(r.run_id)}</strong>
-      <div>${escapeHtml(r.name)} (${escapeHtml(r.kind)})</div>
-      <div><code>${escapeHtml(r.hyperparams)}</code></div>
-      <div>Exact Match: <strong>${escapeHtml(r.exact_match_pct)}%</strong> • Doc ID: <strong>${escapeHtml(r.doc_id_acc_pct ?? "N/A")}%</strong> • Latency: <strong>${escapeHtml(r.latency_ms)} ms</strong></div>
-      ${idx === 1 ? `<div>Delta vs ${escapeHtml(a.run_id)}: <strong>${Number(emDelta) >= 0 ? "+" : ""}${escapeHtml(emDelta)}% EM</strong>, <strong>${Number(latDelta) >= 0 ? "+" : ""}${escapeHtml(latDelta)} ms</strong></div>` : ""}
-    </div>
-  `).join("");
-}
-
 function renderTable() {
   const tbody = document.getElementById("expTableBody");
-  const query = (document.getElementById("expSearchInput")?.value || "").trim().toLowerCase();
-  const filtered = (expPayload.runs || []).filter(r => {
-    const kindOk = activeKind === "all" || r.kind === activeKind;
-    if (!kindOk) return false;
-    if (!query) return true;
-    const blob = `${r.run_id} ${r.kind} ${r.name} ${r.model} ${r.hyperparams} ${r.status}`.toLowerCase();
-    return blob.includes(query);
-  });
-
-  if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11">No matching experiment runs found.</td></tr>`;
+  if (!tbody) return;
+  const runs = expPayload.runs || [];
+  if (runs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10">No evaluation runs found.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = filtered.map(r => {
-    const checked = selectedRunIds.includes(r.run_id);
+  tbody.innerHTML = runs.map(r => {
     const isBest = Number(r.exact_match_pct) >= 98.4;
-    const isOk = ["COMPLETED", "VERIFIED", "PRIMARY", "RECOMMENDED", "AUTO_APPROVED", "DOCUMENT_VERIFIED_WITH_RAG", "ANSWERED_WITH_RAG"].includes(r.status);
+    const isOk = ["COMPLETED", "VERIFIED", "PRIMARY", "RECOMMENDED"].includes(r.status);
     return `
       <tr class="${isBest ? "is-best" : ""}">
-        <td><input type="checkbox" class="cmp-check" data-run-id="${escapeHtml(r.run_id)}" aria-label="Compare ${escapeHtml(r.run_id)}" ${checked ? "checked" : ""}></td>
         <th scope="row">${escapeHtml(r.run_id)}</th>
         <td>${escapeHtml(r.kind)}</td>
         <td>${escapeHtml(r.name)}</td>
@@ -258,69 +171,49 @@ function renderTable() {
       </tr>
     `;
   }).join("");
-
-  tbody.querySelectorAll(".cmp-check").forEach(cb => {
-    cb.addEventListener("change", () => {
-      const id = cb.dataset.runId;
-      if (cb.checked) {
-        if (!selectedRunIds.includes(id)) {
-          if (selectedRunIds.length >= 2) selectedRunIds.shift();
-          selectedRunIds.push(id);
-        }
-      } else {
-        selectedRunIds = selectedRunIds.filter(x => x !== id);
-      }
-      renderCompare();
-      renderTable();
-    });
-  });
 }
 
 function renderBenchmarks() {
   const fourWayBody = document.getElementById("fourWayTableBody");
   if (fourWayBody) {
     const entries = Object.entries(expPayload.four_way_comparison || {});
-    if (entries.length === 0) {
-      fourWayBody.innerHTML = `<tr><td colspan="8">No 4-way benchmark data available.</td></tr>`;
-    } else {
-      fourWayBody.innerHTML = entries.map(([key, row]) => {
-        const isBest = Boolean(row.setup_highlight || key.includes("Fine-Tuned"));
-        return `
-          <tr class="${isBest ? "is-best" : ""}">
-            <th scope="row">${escapeHtml(key)}<span class="setup-subname">${escapeHtml(row.setup_name)}</span></th>
-            <td><strong>${escapeHtml(row.exact_match_pct)}%</strong></td>
-            <td>${escapeHtml(row.document_number_acc)}%</td>
-            <td>${row.citation_precision_pct > 0 ? escapeHtml(row.citation_precision_pct) + "%" : "N/A"}</td>
-            <td>${escapeHtml(row.hallucination_rate_pct)}%</td>
-            <td>${escapeHtml(row.mean_latency_ms)} ms</td>
-            <td>${escapeHtml(row.judge_faithfulness)} / 5</td>
-            <td><span class="status-pill ${isBest ? "ok" : ""}">${escapeHtml(row.judge_composite_score)} / 10</span></td>
-          </tr>
-        `;
-      }).join("");
-    }
+    fourWayBody.innerHTML = entries.length === 0
+      ? `<tr><td colspan="8">No 4-way benchmark data available.</td></tr>`
+      : entries.map(([key, row]) => {
+          const isBest = Boolean(row.setup_highlight || key.includes("Fine-Tuned"));
+          return `
+            <tr class="${isBest ? "is-best" : ""}">
+              <th scope="row">${escapeHtml(key)}<span class="setup-subname">${escapeHtml(row.setup_name)}</span></th>
+              <td><strong>${escapeHtml(row.exact_match_pct)}%</strong></td>
+              <td>${escapeHtml(row.document_number_acc)}%</td>
+              <td>${row.citation_precision_pct > 0 ? escapeHtml(row.citation_precision_pct) + "%" : "N/A"}</td>
+              <td>${escapeHtml(row.hallucination_rate_pct)}%</td>
+              <td>${escapeHtml(row.mean_latency_ms)} ms</td>
+              <td>${escapeHtml(row.judge_faithfulness)} / 5</td>
+              <td><span class="status-pill ${isBest ? "ok" : ""}">${escapeHtml(row.judge_composite_score)} / 10</span></td>
+            </tr>
+          `;
+        }).join("");
   }
 
   const benchBody = document.getElementById("benchmarkTableBody");
   if (benchBody) {
     const entries = Object.entries(expPayload.benchmark_matrix || {}).filter(([k]) => !k.startsWith("_"));
-    if (entries.length === 0) {
-      benchBody.innerHTML = `<tr><td colspan="6">No ablation benchmark data available.</td></tr>`;
-    } else {
-      benchBody.innerHTML = entries.map(([key, row]) => {
-        const isBest = key.includes("Config 1");
-        return `
-          <tr class="${isBest ? "is-best" : ""}">
-            <th scope="row">${escapeHtml(key)}</th>
-            <td><strong>${escapeHtml(row.exact_match_pct)}%</strong></td>
-            <td>${escapeHtml(row.document_number_acc)}%</td>
-            <td>${escapeHtml(row.name_f1)}</td>
-            <td>${escapeHtml(row.valid_json_pct)}%</td>
-            <td>${escapeHtml(row.mean_latency_ms)} ms</td>
-          </tr>
-        `;
-      }).join("");
-    }
+    benchBody.innerHTML = entries.length === 0
+      ? `<tr><td colspan="6">No ablation benchmark data available.</td></tr>`
+      : entries.map(([key, row]) => {
+          const isBest = key.includes("Config 1");
+          return `
+            <tr class="${isBest ? "is-best" : ""}">
+              <th scope="row">${escapeHtml(key)}</th>
+              <td><strong>${escapeHtml(row.exact_match_pct)}%</strong></td>
+              <td>${escapeHtml(row.document_number_acc)}%</td>
+              <td>${escapeHtml(row.name_f1)}</td>
+              <td>${escapeHtml(row.valid_json_pct)}%</td>
+              <td>${escapeHtml(row.mean_latency_ms)} ms</td>
+            </tr>
+          `;
+        }).join("");
   }
 }
 
