@@ -12,7 +12,6 @@ from typing import Any, Dict
 from banking_kyc.models import Address, ExtractedKYCData, KYCDocumentType, ProviderConfig
 from banking_kyc.providers.base import BaseLLMProvider
 
-
 class OllamaProvider(BaseLLMProvider):
     """Inference client for Ollama local daemon."""
 
@@ -43,7 +42,6 @@ class OllamaProvider(BaseLLMProvider):
                 data = json.loads(resp.read().decode("utf-8"))
                 return data["message"]["content"]
         except Exception as e:
-            # Fallback to local heuristic extractor
             from banking_kyc.ocr.engine import HeuristicRegexExtractor
             ext = HeuristicRegexExtractor.extract(prompt)
             return json.dumps({

@@ -8,7 +8,6 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-
 class DocumentNormalizer:
     """Standardizes dates, document numbers, and names across diverse Indian ID formats."""
 
@@ -16,7 +15,6 @@ class DocumentNormalizer:
     def normalize_name(name: Optional[str]) -> str:
         if not name:
             return ""
-        # Remove extra spaces, honorifics (MR., MRS., MS., SHRI, SMT.)
         cleaned = re.sub(r"\b(MR|MRS|MS|SHRI|SMT|DR)\.?\b", "", name, flags=re.IGNORECASE)
         cleaned = re.sub(r"[^A-Za-z\s\.]", "", cleaned)
         return " ".join(cleaned.split()).upper()
@@ -26,12 +24,10 @@ class DocumentNormalizer:
         if not date_str:
             return None
         date_str = date_str.strip()
-        # Matches DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
         m = re.match(r"^(\d{1,2})[-/\.](\d{1,2})[-/\.](\d{4})$", date_str)
         if m:
             d, mth, y = m.groups()
             return f"{int(y):04d}-{int(mth):02d}-{int(d):02d}"
-        # Matches YYYY-MM-DD, YYYY/MM/DD
         m2 = re.match(r"^(\d{4})[-/\.](\d{1,2})[-/\.](\d{1,2})$", date_str)
         if m2:
             y, mth, d = m2.groups()

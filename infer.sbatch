@@ -7,12 +7,6 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
 
-# ==============================================================================
-# FinKYC: Slurm GPU Inference Job for Fine-Tuned Qwen2.5-7B Adapter
-# Author: chandan bauri <chandanbauri441@gmail.com>
-# Node: upgrad-l40s-vm03 (NVIDIA L40S 46GB GPU)
-# ==============================================================================
-
 echo "=========================================================="
 echo " Starting FinKYC GPU Inference on Slurm Cluster (VM03)"
 echo " Job ID:       $SLURM_JOB_ID"
@@ -25,7 +19,6 @@ echo "=========================================================="
 
 mkdir -p logs
 
-# Activate Python environment on VM03
 if [ -f "/storage/tracka/runtime/venv/bin/activate" ]; then
     echo "Activating shared cluster venv at /storage/tracka/runtime/venv..."
     source "/storage/tracka/runtime/venv/bin/activate"
@@ -43,7 +36,6 @@ echo "Using Python: $($PYTHON_BIN --version 2>&1) at $PYTHON_BIN"
 
 ADAPTER_PATH="$1"
 if [ -z "$ADAPTER_PATH" ]; then
-    # Look for most recent job checkpoint
     ADAPTER_PATH=$(ls -td ${HOME}/checkpoints/job-* 2>/dev/null | head -n 1)
 fi
 

@@ -11,16 +11,14 @@ from .indexer import load_chunks
 from .models import Chunk
 from .timing import timer
 
-
 @dataclass(frozen=True)
 class RetrievalConfig:
     name: str
-    index: str = "paragraph"        # "paragraph" or "naive"
-    hybrid: bool = True             # BM25 + vectors fused with RRF (else vectors only)
-    rerank: bool = True             # cross-encoder rerank
-    xrefs: bool = True              # add cross-referenced paragraphs (one hop)
-    version_filter: bool = True     # hide superseded docs unless the query asks about history
-
+    index: str = "paragraph"
+    hybrid: bool = True
+    rerank: bool = True
+    xrefs: bool = True
+    version_filter: bool = True
 
 ABLATIONS = [
     RetrievalConfig("1_baseline", index="naive", hybrid=False, rerank=False, xrefs=False, version_filter=False),
@@ -33,13 +31,11 @@ FULL = ABLATIONS[-1]
 
 AUTHORITY_ORDER = {("regulator", "current"): 0, ("internal", "current"): 2, ("regulator", "superseded"): 3}
 
-
 @dataclass
 class Hit:
     chunk: Chunk
     score: float
-    via: str = "retrieved"          # retrieved | linked (cross-reference)
-
+    via: str = "retrieved"
 
 class Retriever:
     def __init__(self, index: str = "paragraph", embedder=None, reranker=None):
@@ -113,7 +109,6 @@ class Retriever:
                     have.add(cid)
         return extra
 
-
 def rrf(rankings: list[list[tuple[int, float]]], k: int = 60) -> list[tuple[int, float]]:
     """Reciprocal rank fusion: robust way to merge lists whose scores aren't comparable."""
     score: dict[int, float] = {}
@@ -121,7 +116,6 @@ def rrf(rankings: list[list[tuple[int, float]]], k: int = 60) -> list[tuple[int,
         for rank, (idx, _) in enumerate(ranking):
             score[idx] = score.get(idx, 0.0) + 1.0 / (k + rank + 1)
     return sorted(score.items(), key=lambda x: x[1], reverse=True)
-
 
 def order_for_context(hits: list[Hit]) -> list[Hit]:
     """Current regulation first, then FAQs/bank policy, then superseded text."""

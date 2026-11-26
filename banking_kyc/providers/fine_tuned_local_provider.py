@@ -14,7 +14,6 @@ from banking_kyc.models import ExtractedKYCData, ProviderConfig
 from banking_kyc.ocr.engine import HeuristicRegexExtractor
 from banking_kyc.providers.base import BaseLLMProvider
 
-
 class FineTunedLocalProvider(BaseLLMProvider):
     """Production local adapter provider mirroring the fine-tuned checkpoint."""
 
@@ -28,7 +27,6 @@ class FineTunedLocalProvider(BaseLLMProvider):
         super().__init__(config)
 
     def generate(self, prompt: str, **kwargs) -> str:
-        # Extract structured data and serialize to JSON
         extracted = self.extract_kyc_data(prompt)
         payload = {
             "document_type": extracted.document_type.value,
@@ -42,7 +40,6 @@ class FineTunedLocalProvider(BaseLLMProvider):
         return json.dumps(payload, indent=2)
 
     def extract_kyc_data(self, ocr_text: str) -> ExtractedKYCData:
-        # Uses our fine-tuned regex & token heuristic extractor
         extracted = HeuristicRegexExtractor.extract(ocr_text)
         extracted.extraction_confidence = 0.98 if extracted.document_number else 0.65
         return extracted

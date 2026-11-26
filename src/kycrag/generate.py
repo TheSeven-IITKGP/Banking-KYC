@@ -26,7 +26,6 @@ Reply with a JSON object only:
 
 TAG_RE = re.compile(r"\[([A-Za-z0-9\-]+:p[\w.]+)\]")
 
-
 def format_context(hits: list[Hit]) -> str:
     blocks = []
     for h in hits:
@@ -36,7 +35,6 @@ def format_context(hits: list[Hit]) -> str:
         via = " (linked by cross-reference)" if h.via == "linked" else ""
         blocks.append(f"[{c.chunk_id}] {label} | {kind} | {c.heading_path}{via}\n{c.text}")
     return "\n\n---\n\n".join(blocks)
-
 
 class LLMGenerator:
     """Chat-completions generator. Groq and OpenAI both speak the OpenAI API shape,
@@ -51,7 +49,7 @@ class LLMGenerator:
             self.client = OpenAI(api_key=os.environ["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
             self.model = model or SETTINGS.groq_model
         else:
-            self.client = OpenAI()      # reads OPENAI_API_KEY from the environment
+            self.client = OpenAI()
             self.model = model or SETTINGS.openai_model
 
     def complete(self, system: str, user: str) -> str:
@@ -63,7 +61,6 @@ class LLMGenerator:
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             )
         return resp.choices[0].message.content or "{}"
-
 
 def generate_answer(llm, question: str, hits: list[Hit], feedback: str = "") -> dict:
     user = f"Context passages:\n\n{format_context(hits)}\n\nQuestion: {question}"
@@ -78,13 +75,11 @@ def generate_answer(llm, question: str, hits: list[Hit], feedback: str = "") -> 
     out.setdefault("conflicts", "")
     return out
 
-
 def check_citations(result: dict, hits: list[Hit]) -> list[str]:
     """Return citation tags that were NOT in the retrieved context (should be empty)."""
     allowed = {h.chunk.chunk_id for h in hits}
     cited = set(result.get("citations", [])) | set(TAG_RE.findall(result.get("answer", "")))
     return sorted(c for c in cited if c not in allowed)
-
 
 def cited_ids(result: dict) -> list[str]:
     seen: list[str] = []

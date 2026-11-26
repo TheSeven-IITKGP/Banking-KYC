@@ -12,7 +12,6 @@ from .embeddings import VectorStore, get_embedder
 from .models import Chunk, load_manifest
 from .parse import parse_file
 
-# Common KYC acronyms not always defined in the text itself.
 BASE_GLOSSARY = {
     "KYC": "Know Your Customer", "CDD": "Customer Due Diligence", "EDD": "Enhanced Due Diligence",
     "AML": "Anti-Money Laundering", "CFT": "Countering the Financing of Terrorism",
@@ -26,7 +25,6 @@ BASE_GLOSSARY = {
     "PML": "Prevention of Money-Laundering", "PMLA": "Prevention of Money-Laundering Act",
     "FIU": "Financial Intelligence Unit", "NPO": "Non-profit organisation", "RE": "Regulated Entity",
 }
-
 
 def build_all(embed_backend: str | None = None) -> dict:
     docs = load_manifest(SETTINGS.manifest_path)
@@ -76,14 +74,12 @@ def build_all(embed_backend: str | None = None) -> dict:
     print(f"corpus_version {version}")
     return meta
 
-
 def _corpus_version(docs) -> str:
     h = hashlib.sha256()
     for d in sorted(docs, key=lambda x: x.doc_id):
         h.update(f"{d.doc_id}|{d.sha256}|{d.status}|{d.version_date}".encode())
     h.update(f"{SETTINGS.max_chunk_chars}|{SETTINGS.naive_chunk_chars}".encode())
     return h.hexdigest()[:12]
-
 
 def load_chunks(folder: Path) -> list[Chunk]:
     with (folder / "chunks.jsonl").open(encoding="utf-8") as f:

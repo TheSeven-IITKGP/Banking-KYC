@@ -10,13 +10,11 @@ STOP = set(
     "which who whom such any all not no if than then there their them they has have had was were".split()
 )
 
-
 def tokenize(text: str) -> list[str]:
     text = text.lower().replace("₹", " rs ")
-    text = re.sub(r"(?<=\d),(?=\d)", "", text)          # 50,000 -> 50000
+    text = re.sub(r"(?<=\d),(?=\d)", "", text)
     toks = re.findall(r"[a-z0-9]+", text)
     return [t for t in toks if t.isdigit() or (t not in STOP and len(t) > 1)]
-
 
 class BM25:
     def __init__(self, docs: list[str], k1: float = 1.5, b: float = 0.75):

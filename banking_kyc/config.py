@@ -1,13 +1,8 @@
-"""Configuration settings for Banking KYC system.
-
-Author: chandan bauri <chandanbauri441@gmail.com>
-"""
-
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
 
 from banking_kyc.models import ProviderConfig, ProviderType
@@ -25,7 +20,7 @@ class SecuritySettings(BaseModel):
     enable_prompt_guard: bool = True
     enable_pii_redaction: bool = True
     strict_domain_validation: bool = True
-    mask_aadhaar_first_digits: int = 8  # XXXX-XXXX-1234
+    mask_aadhaar_first_digits: int = 8
     mask_pan_middle_chars: bool = True
 
 
@@ -34,21 +29,25 @@ class KYCConfig(BaseModel):
     base_dir: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent)
     data_dir: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent / "data")
     active_provider: ProviderType = ProviderType.LOCAL_FINE_TUNED
+    base_small_model: str = Field(default_factory=lambda: os.getenv("FINKYC_BASE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct"))
+    finetuned_base_model: str = Field(default_factory=lambda: os.getenv("FINKYC_FT_MODEL", "Qwen/Qwen2.5-7B-Instruct"))
+    adapter_path: str = Field(default_factory=lambda: os.getenv("FINKYC_ADAPTER_PATH", "models/adapters/qwen2.5-7b-qlora"))
+    cloudflare_origin_url: Optional[str] = Field(default_factory=lambda: os.getenv("CF_API_ORIGIN"))
     providers: Dict[str, ProviderConfig] = Field(
         default_factory=lambda: {
             ProviderType.LOCAL_FINE_TUNED.value: ProviderConfig(
                 provider_type=ProviderType.LOCAL_FINE_TUNED,
-                model_name="Llama-3-8B-KYC-QLoRA-r16",
+                model_name="Qwen2.5-7B-KYC-QLoRA-Job178",
                 base_url=None,
             ),
             ProviderType.VLLM.value: ProviderConfig(
                 provider_type=ProviderType.VLLM,
-                model_name="meta-llama/Meta-Llama-3-8B-Instruct",
+                model_name="Qwen/Qwen2.5-7B-Instruct",
                 base_url="http://localhost:8000/v1",
             ),
             ProviderType.OLLAMA.value: ProviderConfig(
                 provider_type=ProviderType.OLLAMA,
-                model_name="llama3:latest",
+                model_name="qwen2.5:1.5b",
                 base_url="http://localhost:11434",
             ),
             ProviderType.HUGGINGFACE.value: ProviderConfig(
@@ -64,7 +63,6 @@ class KYCConfig(BaseModel):
     server_port: int = 8080
 
 
-# Global singleton configuration store
 _global_config: KYCConfig = KYCConfig()
 
 

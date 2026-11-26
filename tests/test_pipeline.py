@@ -13,20 +13,18 @@ FIX = ROOT / "tests" / "fixtures"
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "eval"))
 
-from kycrag.bm25 import BM25, tokenize  # noqa: E402
-from kycrag.chunking import extract_glossary, extract_xrefs, naive_chunks, paragraph_chunks  # noqa: E402
-from kycrag.config import SETTINGS  # noqa: E402
-from kycrag.embeddings import HashEmbedder  # noqa: E402
-from kycrag.generate import check_citations  # noqa: E402
-from kycrag.guard import redact, understand  # noqa: E402
-from kycrag.models import load_manifest  # noqa: E402
-from kycrag.parse import html_to_lines, parse_direction_lines  # noqa: E402
-from kycrag.retrieve import ABLATIONS, Hit, RetrievalConfig, Retriever, rrf  # noqa: E402
-
+from kycrag.bm25 import BM25, tokenize
+from kycrag.chunking import extract_glossary, extract_xrefs, naive_chunks, paragraph_chunks
+from kycrag.config import SETTINGS
+from kycrag.embeddings import HashEmbedder
+from kycrag.generate import check_citations
+from kycrag.guard import redact, understand
+from kycrag.models import load_manifest
+from kycrag.parse import html_to_lines, parse_direction_lines
+from kycrag.retrieve import ABLATIONS, Hit, RetrievalConfig, Retriever, rrf
 
 def parse_fixture(name="sample_direction.html"):
     return parse_direction_lines(html_to_lines((FIX / name).read_text(encoding="utf-8")))
-
 
 class ParseTests(unittest.TestCase):
     def test_numbered_paragraphs_and_structure(self):
@@ -45,7 +43,7 @@ class ParseTests(unittest.TestCase):
         everything = " ".join(p.text for p in paras)
         self.assertNotIn("About Us", everything)
         p4 = next(p for p in paras if p.ref == "4")
-        self.assertTrue(p4.text.endswith("paragraphs 6 and 7."))      # no stray "1"
+        self.assertTrue(p4.text.endswith("paragraphs 6 and 7."))
         self.assertEqual(paras[-1].footnotes[0][:10], "1 Inserted")
 
     def test_inline_bold_does_not_split_lines(self):
@@ -60,7 +58,6 @@ class ParseTests(unittest.TestCase):
         paras = parse_fixture("old_direction.html")
         self.assertEqual([p.ref for p in paras], ["Introduction", "1", "2"])
         self.assertEqual(paras[2].chapter, "Chapter II – Accounts")
-
 
 class ChunkTests(unittest.TestCase):
     def setUp(self):
@@ -92,7 +89,6 @@ class ChunkTests(unittest.TestCase):
         ch = naive_chunks(self.paras, self.doc, 300)
         self.assertIn("5", ",".join(c.para_ref for c in ch))
 
-
 class GuardTests(unittest.TestCase):
     def test_redaction(self):
         r = redact("PAN ABCDE1234F, Aadhaar 2345 6789 0123, phone 9876543210, mail a.b@x.com")
@@ -110,7 +106,6 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(understand("How did the 2016 direction differ?", {}).include_superseded)
         q = understand("What counts as an OVD?", {"OVD": "Officially Valid Document"})
         self.assertIn("Officially Valid Document", q.expanded)
-
 
 class SearchTests(unittest.TestCase):
     @classmethod
@@ -163,7 +158,7 @@ class SearchTests(unittest.TestCase):
         refused = KYCAssistant(self.r, FakeLLM(True), "test").ask("Write a poem about the monsoon")
         self.assertEqual(refused["status"], "refused")
         log = SETTINGS.log_path.read_text()
-        self.assertNotIn("Write a poem", log.split("\n")[0])    # first log line is the redacted first question
+        self.assertNotIn("Write a poem", log.split("\n")[0])
 
     def test_pii_never_logged(self):
         from kycrag.pipeline import KYCAssistant
@@ -181,11 +176,9 @@ class SearchTests(unittest.TestCase):
         c5 = self.r.by_id["NEW:p5"]
         self.assertEqual(recall({("NEW", "5"), ("NEW", "6")}, [c5]), 0.5)
 
-
 class FakeReranker:
     def predict(self, pairs):
         return [len(set(q.lower().split()) & set(t.lower().split())) for q, t in pairs]
-
 
 class FakeLLM:
     model = "fake"
@@ -197,7 +190,6 @@ class FakeLLM:
         first = user.split("[", 1)[1].split("]", 1)[0]
         tag = first if self.cite_first else "NEW:p999"
         return json.dumps({"status": "found", "answer": f"The limit is stated here [{tag}].", "citations": [tag], "conflicts": ""})
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,6 @@ from banking_kyc.models import ProviderType
 from banking_kyc.providers.fine_tuned_local_provider import FineTunedLocalProvider
 from banking_kyc.providers.registry import ProviderRegistry
 
-
 class TestProviderRegistry(unittest.TestCase):
 
     def setUp(self):
@@ -22,7 +21,6 @@ class TestProviderRegistry(unittest.TestCase):
         self.registry.set_active_provider(ProviderType.VLLM)
         self.assertEqual(self.registry.get_active_provider().provider_name, ProviderType.VLLM.value)
 
-        # Switch back to local
         self.registry.set_active_provider(ProviderType.LOCAL_FINE_TUNED)
         self.assertEqual(self.registry.get_active_provider().provider_name, ProviderType.LOCAL_FINE_TUNED.value)
 
@@ -35,7 +33,6 @@ class TestProviderRegistry(unittest.TestCase):
         extracted = prov.extract_kyc_data(text)
         self.assertEqual(extracted.document_number, "XXXX-XXXX-9999")
         self.assertEqual(extracted.full_name, "ROHIT SHARMA")
-
 
 if __name__ == "__main__":
     unittest.main()

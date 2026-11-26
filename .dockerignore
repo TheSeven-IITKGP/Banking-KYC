@@ -1,0 +1,17 @@
+.venv/
+venv/
+.git/
+.gitignore
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+finkyc_slurm_package.tar.gz
+logs/
+checkpoints/
+eval/results/
+eval/artifacts/
+.env
+.streamlit/secrets.toml
+cloudflare/

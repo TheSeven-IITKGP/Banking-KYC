@@ -14,7 +14,6 @@ from typing import Any, Dict
 from banking_kyc.models import Address, ExtractedKYCData, KYCDocumentType, ProviderConfig
 from banking_kyc.providers.base import BaseLLMProvider
 
-
 class VLLMProvider(BaseLLMProvider):
     """Inference client for vLLM server instances."""
 
@@ -45,7 +44,6 @@ class VLLMProvider(BaseLLMProvider):
                 data = json.loads(resp.read().decode("utf-8"))
                 return data["choices"][0]["message"]["content"]
         except Exception as e:
-            # Fallback to local extractor if vLLM server is unreachable
             from banking_kyc.ocr.engine import HeuristicRegexExtractor
             ext = HeuristicRegexExtractor.extract(prompt)
             return json.dumps({

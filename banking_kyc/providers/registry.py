@@ -13,7 +13,6 @@ from banking_kyc.providers.hf_provider import HuggingFaceProvider
 from banking_kyc.providers.ollama_provider import OllamaProvider
 from banking_kyc.providers.vllm_provider import VLLMProvider
 
-
 class ProviderRegistry:
     """Manages active and available LLM/VLM providers."""
 
@@ -23,7 +22,6 @@ class ProviderRegistry:
         self._initialize_defaults()
 
     def _initialize_defaults(self):
-        # Register standard providers
         self.register(FineTunedLocalProvider())
         self.register(VLLMProvider(ProviderConfig(provider_type=ProviderType.VLLM, base_url="http://localhost:8000/v1")))
         self.register(OllamaProvider(ProviderConfig(provider_type=ProviderType.OLLAMA, base_url="http://localhost:11434")))
@@ -69,6 +67,4 @@ class ProviderRegistry:
             elif key == ProviderType.LOCAL_FINE_TUNED.value:
                 self._providers[key] = FineTunedLocalProvider(new_cfg)
 
-
-# Global Singleton Registry
 registry = ProviderRegistry()

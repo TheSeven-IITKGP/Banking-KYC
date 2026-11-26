@@ -6,12 +6,113 @@ Author: chandan bauri <chandanbauri441@gmail.com>
 from __future__ import annotations
 
 import abc
+import io
+import os
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from banking_kyc.models import Address, ExtractedKYCData, KYCDocumentType
 from banking_kyc.ocr.normalizer import DocumentNormalizer
 
+_SWIFT_VISION_OCR_SOURCE = """import Foundation
+import Vision
+
+guard CommandLine.arguments.count > 1 else { exit(1) }
+let url = URL(fileURLWithPath: CommandLine.arguments[1])
+let req = VNRecognizeTextRequest()
+req.recognitionLevel = .accurate
+req.usesLanguageCorrection = true
+req.recognitionLanguages = ["en-IN", "en-US"]
+let handler = VNImageRequestHandler(url: url, options: [:])
+try handler.perform([req])
+let lines = (req.results ?? [])
+    .sorted { a, b in
+        if abs(a.boundingBox.midY - b.boundingBox.midY) > 0.02 {
+            return a.boundingBox.midY > b.boundingBox.midY
+        }
+        return a.boundingBox.minX < b.boundingBox.minX
+    }
+    .compactMap { $0.topCandidates(1).first?.string }
+print(lines.joined(separator: "\\n"))
+"""
+
+
+def _ensure_darwin_vision_binary() -> Optional[str]:
+    if sys.platform != "darwin" or not shutil.which("swiftc"):
+        return None
+    cache_dir = Path(tempfile.gettempdir()) / "finkyc-vision-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    bin_path = cache_dir / "finkyc_vision_ocr"
+    if bin_path.is_file() and os.access(bin_path, os.X_OK):
+        return str(bin_path)
+    src_path = cache_dir / "finkyc_vision_ocr.swift"
+    src_path.write_text(_SWIFT_VISION_OCR_SOURCE, encoding="utf-8")
+    mod_cache = cache_dir / "swift-module-cache"
+    mod_cache.mkdir(parents=True, exist_ok=True)
+    res = subprocess.run(
+        ["swiftc", "-module-cache-path", str(mod_cache), str(src_path), "-o", str(bin_path)],
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    if res.returncode == 0 and bin_path.is_file():
+        return str(bin_path)
+    return None
+
+
+def extract_text_from_image_bytes(raw_bytes: bytes, file_name: str = "") -> str:
+    if not raw_bytes:
+        return ""
+    temp_path: Optional[str] = None
+    try:
+        from PIL import Image, ImageOps
+
+        with Image.open(io.BytesIO(raw_bytes)) as img:
+            oriented = ImageOps.exif_transpose(img)
+            rgb = oriented.convert("RGB") if oriented.mode not in ("RGB", "L") else oriented
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                temp_path = tmp.name
+            rgb.save(temp_path, format="PNG")
+
+        if sys.platform == "darwin":
+            vision_bin = _ensure_darwin_vision_binary()
+            if vision_bin:
+                proc = subprocess.run([vision_bin, temp_path], capture_output=True, text=True, timeout=25)
+                if proc.returncode == 0 and proc.stdout.strip():
+                    return proc.stdout.strip()
+
+        tesseract_bin = shutil.which("tesseract")
+        if tesseract_bin:
+            proc = subprocess.run(
+                [tesseract_bin, temp_path, "stdout", "--psm", "6"],
+                capture_output=True,
+                text=True,
+                timeout=25,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                return proc.stdout.strip()
+
+        try:
+            import pytesseract
+            text = pytesseract.image_to_string(temp_path)
+            if text and text.strip():
+                return text.strip()
+        except Exception:
+            pass
+    except Exception:
+        return ""
+    finally:
+        if temp_path and Path(temp_path).exists():
+            try:
+                Path(temp_path).unlink()
+            except OSError:
+                pass
+    return ""
 
 class BaseOCREngine(abc.ABC):
     """Abstract base class for OCR extraction engines."""
@@ -26,21 +127,20 @@ class BaseOCREngine(abc.ABC):
         """Parses structured KYC fields from the raw OCR text."""
         pass
 
-
 class HeuristicRegexExtractor:
     """High-precision pattern matcher for Indian Government ID formats.
 
     Covers Aadhaar, PAN Card, Passport, Voter ID, and Driving Licence.
     """
 
-    # RegEx Patterns
-    AADHAAR_PATTERN = re.compile(r"\b(XXXX[- ]?XXXX[- ]?\d{4}|\d{4}[- ]\d{4}[- ]\d{4})\b", re.IGNORECASE)
+    AADHAAR_PATTERN = re.compile(r"\b(XXXX[- ]?XXXX[- ]?\d{4}|\d{4}[- ]\d{4}[- ]\d{4})(?![- ]\d{4})\b", re.IGNORECASE)
     PAN_PATTERN = re.compile(r"\b([A-Z]{5}[0-9]{4}[A-Z])\b")
     PASSPORT_PATTERN = re.compile(r"\b([A-Z][0-9]{7})\b")
     VOTER_ID_PATTERN = re.compile(r"\b([A-Z]{3}[0-9]{7})\b")
     DL_PATTERN = re.compile(r"\b([A-Z]{2}[0-9]{2}\s?[0-9]{11})\b")
 
-    DOB_PATTERN = re.compile(r"(?:DOB|Date of Birth|D\.O\.B\.?)[\s:]*([0-9]{2}[-/][0-9]{2}[-/][0-9]{4}|[0-9]{4}[-/][0-9]{2}[-/][0-9]{2})", re.IGNORECASE)
+    DOB_PATTERN = re.compile(r"(?:DOB|Date of Birth|D\.O\.B\.?)[\s:]*([0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{4}|[0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2})", re.IGNORECASE)
+    YOB_PATTERN = re.compile(r"(?:Year of Birth|YOB)[\s:]*((?:19|20)[0-9]{2})", re.IGNORECASE)
     GENDER_PATTERN = re.compile(r"\b(MALE|FEMALE|TRANSGENDER)\b", re.IGNORECASE)
     PINCODE_PATTERN = re.compile(r"\b([1-9][0-9]{5})\b")
 
@@ -59,7 +159,6 @@ class HeuristicRegexExtractor:
         if "REPUBLIC OF INDIA" in text_upper and "PASSPORT" in text_upper:
             return KYCDocumentType.PASSPORT
 
-        # Fallback check on ID patterns
         if cls.AADHAAR_PATTERN.search(text):
             return KYCDocumentType.AADHAAR_CARD
         if cls.PAN_PATTERN.search(text):
@@ -86,9 +185,9 @@ class HeuristicRegexExtractor:
         city = None
         state = None
 
-        # Extract Document Number based on type
         if doc_type == KYCDocumentType.AADHAAR_CARD:
-            m = cls.AADHAAR_PATTERN.search(raw_text)
+            non_vid_text = "\n".join(line for line in raw_text.splitlines() if "VID" not in line.upper())
+            m = cls.AADHAAR_PATTERN.search(non_vid_text) or cls.AADHAAR_PATTERN.search(raw_text)
             if m:
                 doc_number = DocumentNormalizer.normalize_aadhaar(m.group(1))
         elif doc_type == KYCDocumentType.PAN_CARD:
@@ -108,39 +207,44 @@ class HeuristicRegexExtractor:
             if m:
                 doc_number = m.group(1).upper()
 
-        # DOB match
         m_dob = cls.DOB_PATTERN.search(raw_text)
         if m_dob:
             dob = DocumentNormalizer.normalize_date(m_dob.group(1))
+        else:
+            m_yob = cls.YOB_PATTERN.search(raw_text)
+            if m_yob:
+                dob = m_yob.group(1)
 
-        # Gender match
         m_gender = cls.GENDER_PATTERN.search(raw_text)
         if m_gender:
             gender = m_gender.group(1).upper()
 
-        # Pincode match
         m_pin = cls.PINCODE_PATTERN.findall(raw_text)
         if m_pin:
-            pincode = m_pin[-1]  # Typically at the end of address block
+            pincode = m_pin[-1]
 
-        # Name extraction heuristics from text lines
+        skip_keywords = [
+            "GOVERNMENT", "INDIA", "AUTHORITY", "DEPARTMENT", "INCOME TAX", "ELECTION",
+            "PASSPORT", "LICENCE", "DOB", "MALE", "FEMALE", "VID", "ADDRESS", "FATHER",
+            "AADHAAR", "PEHCHAN", "MERA", "UNIQUE", "UIDAI", "ENROL", "DOWNLOAD",
+            "ISSUE", "HELP", "WWW", "GOV", "YEAR OF BIRTH", "YOB", "SON OF", "CARE OF",
+        ]
         lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
         for i, line in enumerate(lines):
             line_up = line.upper()
-            if any(skip in line_up for skip in ["GOVERNMENT", "INDIA", "AUTHORITY", "DEPARTMENT", "INCOME TAX", "ELECTION", "PASSPORT", "LICENCE", "DOB", "MALE", "FEMALE", "VID :", "ADDRESS", "FATHER"]):
+            if line_up in {"TO", "OF", "C/O", "S/O", "D/O", "W/O"}:
                 continue
-            # Check if looks like a name (2 to 4 capitalized words)
+            if any(skip in line_up for skip in skip_keywords):
+                continue
             words = line.split()
             if 1 <= len(words) <= 4 and re.match(r"^[A-Za-z\.\s]+$", line):
                 full_name = line.strip().upper()
-                # Next line might be Father's name if PAN
                 if doc_type == KYCDocumentType.PAN_CARD and i + 1 < len(lines):
                     next_line = lines[i + 1].strip()
                     if not any(skip in next_line.upper() for skip in ["DOB", "INCOME", "PERMANENT"]) and re.match(r"^[A-Za-z\.\s]+$", next_line):
                         father_name = next_line.upper()
                 break
 
-        # Address extraction heuristic
         if "Address:" in raw_text or "ADDRESS" in raw_text.upper():
             addr_idx = raw_text.find("Address:")
             if addr_idx == -1:
@@ -172,7 +276,6 @@ class HeuristicRegexExtractor:
             raw_text=raw_text,
             extraction_confidence=confidence,
         )
-
 
 class SimulatedDatasetOCREngine(BaseOCREngine):
     """Engine that reads from the synthetic dataset or parses incoming text."""

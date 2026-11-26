@@ -14,13 +14,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
-from fastapi.staticfiles import StaticFiles  # noqa: E402
-from pydantic import BaseModel  # noqa: E402
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
-from kycrag.generate import LLMGenerator  # noqa: E402
-from kycrag.pipeline import KYCAssistant  # noqa: E402
-from kycrag.retrieve import ABLATIONS, Retriever  # noqa: E402
+from kycrag.generate import LLMGenerator
+from kycrag.pipeline import KYCAssistant
+from kycrag.retrieve import ABLATIONS, Retriever
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_NAMES = [c.name for c in ABLATIONS]
@@ -31,11 +31,9 @@ app = FastAPI(title="KYC rules assistant")
 _retrievers: dict[str, Retriever] = {}
 _llm: LLMGenerator | None = None
 
-
 class AskRequest(BaseModel):
     question: str
     config: str = DEFAULT_CONFIG
-
 
 def _get_llm() -> LLMGenerator:
     global _llm
@@ -46,7 +44,6 @@ def _get_llm() -> LLMGenerator:
             raise HTTPException(500, f"Missing environment variable {e}. Check your .env.") from e
     return _llm
 
-
 def _get_retriever(index: str) -> Retriever:
     if index not in _retrievers:
         try:
@@ -55,16 +52,13 @@ def _get_retriever(index: str) -> Retriever:
             raise HTTPException(500, "No index found. Run `python -m kycrag.cli build` first.") from e
     return _retrievers[index]
 
-
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
 
-
 @app.get("/api/configs")
 def configs() -> list[str]:
     return CONFIG_NAMES
-
 
 @app.post("/api/ask")
 def ask(req: AskRequest) -> dict:
@@ -75,6 +69,5 @@ def ask(req: AskRequest) -> dict:
         raise HTTPException(400, f"Unknown config {req.config!r}. Choose one of {CONFIG_NAMES}.")
     assistant = KYCAssistant(_get_retriever(cfg.index), _get_llm())
     return assistant.ask(req.question, cfg)
-
 
 app.mount("/", StaticFiles(directory=APP_DIR / "static", html=True), name="static")

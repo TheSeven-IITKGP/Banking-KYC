@@ -18,7 +18,6 @@ import sys
 import time
 import traceback
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="FinKYC Slurm QLoRA Training Script")
     parser.add_argument("--model_name", default="Qwen/Qwen2.5-7B-Instruct", help="Base model identifier or path")
@@ -34,13 +33,11 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
     return parser.parse_args()
 
-
 def main():
     args = parse_args()
     out_path = Path(args.output_dir).expanduser().resolve()
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # Detect cluster base model path if present
     model_name = args.model_name
     base_file = Path("/storage/tracka/models/base_model_path.txt")
     is_cluster = base_file.exists() or Path(model_name).exists()
@@ -54,7 +51,6 @@ def main():
     print(f"⚙️ Config: LoRA r={args.lora_r}, alpha={args.lora_alpha}, max_steps={args.max_steps}, lr={args.lr}")
     print("==========================================================")
 
-    # Check dataset files
     train_file = Path(args.train_data)
     if not train_file.exists():
         train_file = Path("data/processed") / args.train_data
@@ -71,7 +67,6 @@ def main():
                 train_records.append(json.loads(line))
     print(f"✅ Loaded {len(train_records)} training samples.")
 
-    # Check GPU availability
     try:
         import torch
         gpu_available = torch.cuda.is_available()
@@ -81,7 +76,6 @@ def main():
         gpu_available = False
         print("⚠️ torch not installed in current environment; proceeding in simulation mode.")
 
-    # Save experiment metadata (separate from adapter_config.json)
     experiment_metadata = {
         "model_name": model_name,
         "base_architecture": "Qwen2.5-7B-Instruct",
@@ -116,11 +110,9 @@ def main():
             if tokenizer.pad_token_id is None:
                 tokenizer.pad_token = tokenizer.eos_token
 
-            # Tokenize training examples using Qwen chat template
             print("🔤 Tokenizing dataset samples...")
             examples = []
             for row in train_records:
-                # Support both prompt/response format and raw OCR format
                 if "prompt" in row and "response" in row:
                     prompt_text = row["prompt"]
                     resp_text = row["response"]
@@ -182,7 +174,6 @@ def main():
             trainable = [p for p in model.parameters() if p.requires_grad]
             optimizer = torch.optim.AdamW(trainable, lr=args.lr)
 
-            # Training loop
             print(f"🔥 Training starting on NVIDIA L40S GPU for {args.max_steps} optimization steps...")
             losses = []
             start_time = time.monotonic()
@@ -237,7 +228,6 @@ def main():
             print(f"⚠️ GPU training error encountered: {e}")
             traceback.print_exc()
 
-    # Headless / fallback summary
     print("ℹ️ Writing fallback training summary.")
     summary = {
         "status": "COMPLETED",
@@ -248,7 +238,6 @@ def main():
     }
     with open(out_path / "training_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
-
 
 if __name__ == "__main__":
     main()

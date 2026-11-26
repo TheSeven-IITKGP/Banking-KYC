@@ -13,7 +13,6 @@ from pathlib import Path
 import random
 from typing import Any, Dict, List, Tuple
 
-
 class KYCDatasetPreparer:
     """Prepares instruction-tuning datasets from raw KYC JSONL records."""
 
@@ -101,7 +100,6 @@ class KYCDatasetPreparer:
         summary = {}
 
         for split_name, data in splits.items():
-            # Export raw JSONL (augmented with prompt and response keys for cluster starter compatibility)
             jsonl_file = out_path / f"kyc_{split_name}.jsonl"
             with open(jsonl_file, "w", encoding="utf-8") as f:
                 for item in data:
@@ -110,13 +108,11 @@ class KYCDatasetPreparer:
                     augmented["response"] = json.dumps(item["ground_truth_extraction_json"], ensure_ascii=False)
                     f.write(json.dumps(augmented) + "\n")
 
-            # Export Llama-3 ChatML format
             llama3_file = out_path / f"kyc_{split_name}_llama3.jsonl"
             with open(llama3_file, "w", encoding="utf-8") as f:
                 for item in data:
                     f.write(json.dumps(self.format_llama3_chatml(item)) + "\n")
 
-            # Export Alpaca format
             alpaca_file = out_path / f"kyc_{split_name}_alpaca.jsonl"
             with open(alpaca_file, "w", encoding="utf-8") as f:
                 for item in data:

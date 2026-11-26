@@ -1,0 +1,10 @@
+name = "finkyc-platform"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+
+[assets]
+directory = "../banking_kyc/web"
+binding = "ASSETS"
+
+[vars]
+API_ORIGIN = ""

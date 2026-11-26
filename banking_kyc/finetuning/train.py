@@ -14,7 +14,6 @@ from typing import Any, Dict
 from banking_kyc.finetuning.dataset_prep import KYCDatasetPreparer
 from banking_kyc.finetuning.qlora_config import QLoRAExperimentConfigs
 
-
 def run_training_pipeline(
     config_name: str = "config_1_balanced",
     data_dir: str = "data/processed",
@@ -30,7 +29,6 @@ def run_training_pipeline(
     out_path = Path(output_dir) / cfg.experiment_name
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # Save experiment config JSON
     config_file = out_path / "experiment_config.json"
     with open(config_file, "w", encoding="utf-8") as f:
         json.dump(cfg.to_dict(), f, indent=2)
@@ -49,12 +47,10 @@ def run_training_pipeline(
         "status": "COMPLETED_DRY_RUN" if dry_run else "IN_TRAINING",
     }
 
-    # Write training run summary
     with open(out_path / "training_summary.json", "w", encoding="utf-8") as f:
         json.dump(status_report, f, indent=2)
 
     return status_report
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="QLoRA KYC Fine-Tuning Runner")

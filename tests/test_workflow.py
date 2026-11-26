@@ -7,7 +7,6 @@ import unittest
 from banking_kyc.models import ApplicantProfile, ImageQualityFlags, VerificationDecision
 from banking_kyc.workflow.graph import KYCWorkflowState, LangGraphKYCWorkflow
 
-
 class TestWorkflowEndToEnd(unittest.TestCase):
 
     def setUp(self):
@@ -46,7 +45,6 @@ class TestWorkflowEndToEnd(unittest.TestCase):
         self.assertTrue(res.field_comparison.document_number_exact_match)
         self.assertEqual(res.field_comparison.name_similarity_score, 1.0)
         self.assertTrue(res.field_comparison.dob_match)
-        # Check PII redaction
         self.assertIn("XXXX-XXXX-5339", res.sanitized_view["extracted_document_number"])
         self.assertIn("+91-XXXXXX9690", res.sanitized_view["applicant_mobile"])
 
@@ -89,7 +87,6 @@ class TestWorkflowEndToEnd(unittest.TestCase):
         res = self.workflow.execute(state)
         self.assertFalse(res.overall_match)
         self.assertEqual(res.decision, VerificationDecision.REJECTED_POOR_QUALITY)
-
 
 if __name__ == "__main__":
     unittest.main()

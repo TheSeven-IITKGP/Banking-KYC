@@ -6,44 +6,75 @@ Author: chandan bauri <chandanbauri441@gmail.com>
 from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, Tuple
 from banking_kyc.models import Address, ExtractedKYCData, KYCDocumentType, ProviderConfig
 from banking_kyc.providers.base import BaseLLMProvider
 
-
 class HuggingFaceProvider(BaseLLMProvider):
-    """Inference client executing directly via local Transformers pipeline."""
+    """Inference client executing directly via Transformers and optional PEFT adapter."""
+
+    _MODEL_CACHE: Dict[Tuple[str, str], Any] = {}
 
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
-        self._pipeline = None
+        self._runtime = None
 
-    def _get_pipeline(self):
-        if self._pipeline is None:
-            try:
-                import torch
-                from transformers import pipeline
-                self._pipeline = pipeline(
-                    "text-generation",
-                    model=self.config.model_name,
-                    device_map="auto" if torch.cuda.is_available() else "cpu",
-                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+    def _get_runtime(self):
+        if self._runtime is not None:
+            return self._runtime
+        cache_key = (self.config.model_name, self.config.adapter_path or "")
+        if cache_key in self._MODEL_CACHE:
+            self._runtime = self._MODEL_CACHE[cache_key]
+            return self._runtime
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+
+            has_cuda = torch.cuda.is_available()
+            if not has_cuda and self.config.adapter_path:
+                self._runtime = False
+                return self._runtime
+
+            tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
+            load_kwargs: Dict[str, Any] = {
+                "device_map": "auto" if has_cuda else "cpu",
+                "torch_dtype": torch.bfloat16 if has_cuda else torch.float32,
+            }
+            if has_cuda and self.config.adapter_path:
+                from transformers import BitsAndBytesConfig
+                load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
                 )
-            except Exception:
-                self._pipeline = False
-        return self._pipeline
+
+            model = AutoModelForCausalLM.from_pretrained(self.config.model_name, **load_kwargs)
+            if self.config.adapter_path and Path(self.config.adapter_path).is_dir():
+                from peft import PeftModel
+                model = PeftModel.from_pretrained(model, self.config.adapter_path, local_files_only=True)
+            model.eval()
+            self._runtime = (model, tokenizer)
+            self._MODEL_CACHE[cache_key] = self._runtime
+        except Exception:
+            self._runtime = False
+        return self._runtime
 
     def generate(self, prompt: str, **kwargs) -> str:
-        pipe = self._get_pipeline()
-        if pipe:
+        runtime = self._get_runtime()
+        if runtime:
+            import torch
+            model, tokenizer = runtime
             messages = [
                 {"role": "system", "content": self.build_system_prompt()},
                 {"role": "user", "content": prompt},
             ]
-            outputs = pipe(messages, max_new_tokens=self.config.max_tokens, do_sample=False)
-            return outputs[0]["generated_text"][-1]["content"]
+            rendered = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            inputs = tokenizer(rendered, return_tensors="pt").to(model.device)
+            with torch.no_grad():
+                outputs = model.generate(**inputs, max_new_tokens=self.config.max_tokens, do_sample=False)
+            return tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
 
-        # Fallback to local heuristic extractor if weights not pre-cached
         from banking_kyc.ocr.engine import HeuristicRegexExtractor
         ext = HeuristicRegexExtractor.extract(prompt)
         return json.dumps({

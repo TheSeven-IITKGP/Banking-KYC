@@ -16,7 +16,6 @@ import re
 import sys
 import traceback
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="FinKYC Slurm Inference Tester")
     parser.add_argument("--adapter_path", default="checkpoints/latest", help="Path to saved LoRA adapter checkpoint")
@@ -25,12 +24,10 @@ def parse_args():
     parser.add_argument("--sample_file", default="kyc_test.jsonl", help="JSONL test file to evaluate")
     return parser.parse_args()
 
-
 def extract_regex_standalone(raw_text: str) -> dict:
     """Pure Python, zero-dependency regex extractor for Indian KYC documents."""
     text_upper = raw_text.upper()
 
-    # Determine document type
     doc_type = "UNKNOWN"
     if any(k in text_upper for k in ["UNIQUE IDENTIFICATION", "AADHAAR", "UIDAI", "GOVERNMENT OF INDIA"]):
         doc_type = "AADHAAR_CARD"
@@ -43,7 +40,6 @@ def extract_regex_standalone(raw_text: str) -> dict:
     elif any(k in text_upper for k in ["PASSPORT", "REPUBLIC OF INDIA PASSPORT"]):
         doc_type = "PASSPORT"
 
-    # Extract ID numbers
     doc_number = None
     if doc_type == "AADHAAR_CARD":
         m = re.search(r"\b(\d{4}[ -]?\d{4}[ -]?\d{4}|[X\d]{4}[ -]?[X\d]{4}[ -]?\d{4})\b", raw_text)
@@ -66,7 +62,6 @@ def extract_regex_standalone(raw_text: str) -> dict:
         if m:
             doc_number = m.group(1)
 
-    # DOB match
     dob = None
     m_dob = re.search(r"(?:DOB|Date of Birth|D\.O\.B\.?)[:\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})", raw_text, re.IGNORECASE)
     if m_dob:
@@ -79,19 +74,16 @@ def extract_regex_standalone(raw_text: str) -> dict:
                 y = parts[2] if len(parts[2]) == 4 else f"19{parts[2]}"
                 dob = f"{y}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
 
-    # Gender match
     gender = None
     m_gen = re.search(r"\b(MALE|FEMALE|TRANSGENDER|M|F)\b", text_upper)
     if m_gen:
         g_raw = m_gen.group(1)
         gender = "FEMALE" if g_raw in ["FEMALE", "F"] else ("MALE" if g_raw in ["MALE", "M"] else g_raw)
 
-    # Name and Father's Name heuristic
     full_name = None
     father_name = None
     lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
-    # Check for labeled fields first (e.g. Elector's Name:, Name:)
     for line in lines:
         m_name = re.search(r"(?:Elector's Name|Name)[:\s]+([A-Za-z\s\.]+)", line, re.IGNORECASE)
         if m_name and not full_name:
@@ -113,11 +105,9 @@ def extract_regex_standalone(raw_text: str) -> dict:
                 full_name = line.strip().upper()
                 break
 
-    # Pincode
     pincodes = re.findall(r"\b(\d{6})\b", raw_text)
     pincode = pincodes[-1] if pincodes else None
 
-    # Address
     address_line = None
     if "Address:" in raw_text or "ADDRESS" in text_upper:
         idx = raw_text.find("Address:")
@@ -144,11 +134,9 @@ def extract_regex_standalone(raw_text: str) -> dict:
         "extraction_method": "deterministic_heuristic_fallback",
     }
 
-
 def main():
     args = parse_args()
 
-    # Detect cluster base model path if present
     model_name = args.model_name
     base_file = Path("/storage/tracka/models/base_model_path.txt")
     is_cluster = base_file.exists() or Path(model_name).exists()
@@ -162,7 +150,6 @@ def main():
     print(f" Adapter Path:       {args.adapter_path}")
     print("==========================================================")
 
-    # Inspect adapter directory and auto-patch adapter_config.json if peft_type is missing
     adapter_p = Path(args.adapter_path)
     if adapter_p.exists():
         cfg_file = adapter_p / "adapter_config.json"
@@ -189,7 +176,6 @@ def main():
             except Exception as e:
                 print(f"Notice: Config patch inspection note: {e}")
 
-        # Check for weights file
         weight_files = [f for f in ["adapter_model.safetensors", "adapter_model.bin"] if (adapter_p / f).exists()]
         if weight_files:
             print(f"📦 Found trained adapter weight file: {weight_files[0]}")
@@ -199,7 +185,6 @@ def main():
 
     sample_ocr = args.input_text
     if not sample_ocr:
-        # Load first record from test file if present
         test_p = Path(args.sample_file)
         if not test_p.exists():
             test_p = Path("data/processed") / args.sample_file
@@ -220,7 +205,6 @@ def main():
     print("\n--- Raw OCR Input ---")
     print(sample_ocr)
 
-    # Check for PyTorch & Transformers
     torch_available = False
     try:
         import torch
@@ -283,12 +267,10 @@ def main():
                 print(f"⚠️ Model load or generation encountered: {e}")
                 traceback.print_exc()
 
-    # Fallback heuristic extraction
     print("\n--- Running Self-Contained Deterministic Heuristic Extraction ---")
     extracted = extract_regex_standalone(sample_ocr)
     print("\n--- Extracted JSON Result ---")
     print(json.dumps(extracted, indent=2, ensure_ascii=False))
-
 
 if __name__ == "__main__":
     main()

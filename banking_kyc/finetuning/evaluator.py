@@ -16,12 +16,9 @@ from typing import Any, Dict, List, Optional
 from banking_kyc.ocr.engine import HeuristicRegexExtractor
 from banking_kyc.ocr.normalizer import DocumentNormalizer
 
-
 class KYCEvaluator:
     """Benchmark evaluation harness comparing Base Model (Zero/Few-Shot) against Fine-Tuned checkpoints."""
 
-    # Capstone Track A (Week 3) Required 4-Way Comparison Setup:
-    # Base Model vs Base + RAG vs Fine-Tuned vs Fine-Tuned + RAG on Task Metrics & LLM Judge
     FOUR_WAY_COMPARISON: Dict[str, Dict[str, Any]] = {
         "Base Model": {
             "setup_name": "Base Model (meta-llama/Meta-Llama-3-8B-Instruct)",
@@ -82,7 +79,6 @@ class KYCEvaluator:
         },
     }
 
-    # Empirically validated benchmark results on the 300 held-out test records
     BENCHMARK_MATRIX: Dict[str, Dict[str, Any]] = {
         "Base Model (Zero-Shot) - Llama-3-8B": {
             "model_variant": "meta-llama/Meta-Llama-3-8B-Instruct (Zero-Shot)",
@@ -178,25 +174,21 @@ class KYCEvaluator:
             gt = rec["ground_truth_extraction_json"]
             extracted = HeuristicRegexExtractor.extract(raw_text)
 
-            # Check doc number
             doc_num_ok = (extracted.document_number == gt.get("document_number"))
             if doc_num_ok:
                 doc_num_correct += 1
 
-            # Name similarity
             sim = DocumentNormalizer.calculate_levenshtein_ratio(
                 extracted.full_name or "", gt.get("full_name") or ""
             )
             name_scores.append(sim)
 
-            # DOB match
             ext_dob = DocumentNormalizer.normalize_date(extracted.date_of_birth)
             gt_dob = DocumentNormalizer.normalize_date(gt.get("date_of_birth"))
             dob_ok = (ext_dob == gt_dob and ext_dob is not None)
             if dob_ok:
                 dob_matches += 1
 
-            # Exact match across core fields
             if doc_num_ok and sim >= 0.95 and (dob_ok or gt.get("date_of_birth") is None):
                 em_count += 1
 

@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 
 from .timing import timer
 
-# Order matters: more specific patterns first.
 PII_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("EMAIL", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
     ("AADHAAR", re.compile(r"\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b")),
@@ -49,7 +48,6 @@ CUSTOMER_TYPES = {
     "PEP": r"\b(pep|politically exposed)\b", "SHG": r"\b(shg|self help group)\b", "FPI": r"\b(fpi|foreign portfolio)\b",
 }
 
-
 @dataclass
 class GuardResult:
     text: str
@@ -59,7 +57,6 @@ class GuardResult:
     def had_pii(self) -> bool:
         return bool(self.found)
 
-
 def redact(text: str) -> GuardResult:
     found: list[str] = []
     for label, rx in PII_PATTERNS:
@@ -68,17 +65,15 @@ def redact(text: str) -> GuardResult:
             text = rx.sub(f"[{label}]", text)
     return GuardResult(text=text, found=found)
 
-
 @dataclass
 class QueryInfo:
     original: str
     redacted: str
     pii_found: list[str]
-    intent: str                     # in_scope | customer_specific | out_of_scope
+    intent: str
     include_superseded: bool
     customer_types: list[str]
-    expanded: str                   # text used for retrieval
-
+    expanded: str
 
 def understand(query: str, glossary: dict[str, str]) -> QueryInfo:
     with timer("understand"):

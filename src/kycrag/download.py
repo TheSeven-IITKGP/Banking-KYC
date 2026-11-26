@@ -14,7 +14,6 @@ from .models import load_manifest, save_manifest
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (student capstone; KYC RAG research)"}
 
-
 def sha256_of(path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -22,9 +21,8 @@ def sha256_of(path) -> str:
             h.update(block)
     return h.hexdigest()
 
-
 def download_all(force: bool = False) -> None:
-    import requests  # imported here so the rest of the package works without it
+    import requests
 
     SETTINGS.raw_dir.mkdir(parents=True, exist_ok=True)
     docs = load_manifest(SETTINGS.manifest_path)
@@ -40,7 +38,6 @@ def download_all(force: bool = False) -> None:
             d.downloaded_on = dt.date.today().isoformat()
         d.sha256 = sha256_of(target)
     save_manifest(SETTINGS.manifest_path, docs)
-
 
 def fill_checksums() -> None:
     docs = load_manifest(SETTINGS.manifest_path)

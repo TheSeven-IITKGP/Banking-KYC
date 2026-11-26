@@ -9,7 +9,6 @@ from banking_kyc.ocr.engine import HeuristicRegexExtractor
 from banking_kyc.ocr.normalizer import DocumentNormalizer
 from banking_kyc.ocr.preprocessor import ImageQualityAnalyzer, OCRNoiseSimulator
 
-
 class TestOCRModule(unittest.TestCase):
 
     def test_aadhaar_extraction(self):
@@ -51,11 +50,9 @@ class TestOCRModule(unittest.TestCase):
 
     def test_image_quality_check(self):
         analyzer = ImageQualityAnalyzer(min_confidence_threshold=0.70)
-        # Normal image
         ok, flags, msg = analyzer.evaluate_quality("Standard length text over 20 chars long for checking", 0.92, False, False)
         self.assertTrue(ok)
 
-        # Blurry + low confidence
         bad_ok, bad_flags, bad_msg = analyzer.evaluate_quality("Text long enough but blurred and poor score", 0.55, blur_detected=True)
         self.assertFalse(bad_ok)
         self.assertIn("Severe blur detected", bad_msg)
@@ -65,7 +62,6 @@ class TestOCRModule(unittest.TestCase):
         self.assertEqual(sim1, 1.0)
         sim2 = DocumentNormalizer.calculate_levenshtein_ratio("Aarav Shetty", "A. Shetty")
         self.assertGreater(sim2, 0.50)
-
 
 if __name__ == "__main__":
     unittest.main()

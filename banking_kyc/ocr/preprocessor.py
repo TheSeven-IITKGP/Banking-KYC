@@ -9,7 +9,6 @@ import random
 from typing import Dict, Tuple
 from banking_kyc.models import ImageQualityFlags
 
-
 class ImageQualityAnalyzer:
     """Analyzes image quality indicators for KYC document OCR."""
 
@@ -25,7 +24,6 @@ class ImageQualityAnalyzer:
         orientation_angle: int = 0,
     ) -> Tuple[bool, ImageQualityFlags, str]:
         """Evaluates whether the document image quality is sufficient for KYC processing."""
-        # Clean text check
         text_length = len(raw_text.strip()) if raw_text else 0
         if text_length < 20:
             return (
@@ -67,7 +65,6 @@ class ImageQualityAnalyzer:
             ),
             "Quality acceptable",
         )
-
 
 class OCRNoiseSimulator:
     """Simulates realistic optical character recognition errors found in Indian ID scans."""

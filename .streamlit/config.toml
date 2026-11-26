@@ -1,13 +1,20 @@
 [server]
-address = "127.0.0.1"   # localhost only, never 0.0.0.0
+address = "127.0.0.1"
 headless = true
 
 [browser]
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#2563eb"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f8fafc"
-textColor = "#1a1a1a"
+base = "dark"
+primaryColor = "#15803d"
+backgroundColor = "#121212"
+secondaryBackgroundColor = "#1e1e1e"
+textColor = "#f0f0f0"
+borderColor = "#333333"
+codeBackgroundColor = "#1a1a1a"
+codeTextColor = "#e5e5e5"
+dataframeBorderColor = "#333333"
+dataframeHeaderBackgroundColor = "#242424"
+dataframeHeaderTextColor = "#f0f0f0"
 font = "sans serif"

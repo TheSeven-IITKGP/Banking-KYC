@@ -10,7 +10,6 @@ from banking_kyc.security.inbound_guard import PromptSecurityGuard
 from banking_kyc.security.outbound_redactor import PIIRedactor
 from banking_kyc.security.guardrail import SecurityLayer
 
-
 class TestSecurityLayer(unittest.TestCase):
 
     def setUp(self):
@@ -38,14 +37,12 @@ class TestSecurityLayer(unittest.TestCase):
     def test_outbound_pii_redaction(self):
         redactor = PIIRedactor()
 
-        # Aadhaar masking
         text = "Customer Aadhaar is 1234 5678 9012 and phone is +91-9876543210"
         redacted = redactor.redact_text(text)
         self.assertNotIn("1234 5678", redacted)
         self.assertIn("XXXX-XXXX-9012", redacted)
         self.assertIn("+91-XXXXXX3210", redacted)
 
-        # Dict masking
         data = {
             "applicant_name": "Rohan Deshmukh",
             "document_number": "1234 5678 9012",
@@ -56,7 +53,6 @@ class TestSecurityLayer(unittest.TestCase):
         self.assertIn("XXXX-XXXX-9012", masked["document_number"])
         self.assertIn("+91-XXXXXX3210", masked["mobile"])
         self.assertEqual(masked["email"], "r***@example.com")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,7 +11,6 @@ import re
 from typing import Any, Dict, Optional
 from banking_kyc.models import ExtractedKYCData, KYCDocumentType, ProviderConfig
 
-
 class BaseLLMProvider(abc.ABC):
     """Abstract interface all KYC extraction providers must implement."""
 
@@ -50,7 +49,6 @@ class BaseLLMProvider(abc.ABC):
     def parse_json_response(self, response_text: str) -> Dict[str, Any]:
         """Robust parser for LLM JSON outputs, stripping Markdown fences if present."""
         cleaned = response_text.strip()
-        # Strip ```json ... ```
         if "```" in cleaned:
             match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
             if match:
@@ -58,7 +56,6 @@ class BaseLLMProvider(abc.ABC):
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError:
-            # Fallback regex search for { ... }
             match = re.search(r"(\{[\s\S]*\})", cleaned)
             if match:
                 try:

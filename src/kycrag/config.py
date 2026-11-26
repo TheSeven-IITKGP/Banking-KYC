@@ -7,7 +7,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-
 def _load_dotenv(path: Path) -> None:
     """Minimal .env loader so we don't need python-dotenv."""
     if not path.exists():
@@ -19,37 +18,30 @@ def _load_dotenv(path: Path) -> None:
         key, _, value = line.partition("=")
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
-
 _load_dotenv(ROOT / ".env")
-
 
 @dataclass
 class Settings:
-    # Paths
     raw_dir: Path = ROOT / "data" / "raw"
     processed_dir: Path = ROOT / "data" / "processed"
     manifest_path: Path = ROOT / "manifest.csv"
     log_path: Path = ROOT / "logs" / "queries.jsonl"
 
-    # LLM: "groq" (free tier, needs GROQ_API_KEY) or "openai" (uses credits, needs OPENAI_API_KEY).
     llm_provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "groq"))
     groq_model: str = field(default_factory=lambda: os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"))
     openai_model: str = field(default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     judge_model: str = field(default_factory=lambda: os.getenv("JUDGE_MODEL", ""))
 
-    # Embeddings: "local" (free, sentence-transformers) or "openai" (uses credits)
     embed_backend: str = field(default_factory=lambda: os.getenv("EMBED_BACKEND", "local"))
     local_embed_model: str = field(default_factory=lambda: os.getenv("LOCAL_EMBED_MODEL", "BAAI/bge-small-en-v1.5"))
     openai_embed_model: str = field(default_factory=lambda: os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"))
     rerank_model: str = field(default_factory=lambda: os.getenv("RERANK_MODEL", "BAAI/bge-reranker-base"))
 
-    # Retrieval sizes
     bm25_k: int = 20
     vector_k: int = 20
     rrf_k: int = 60
     final_k: int = 5
     max_chunk_chars: int = 2500
-    naive_chunk_chars: int = 2000  # ~500 tokens, used only by the baseline config
-
+    naive_chunk_chars: int = 2000
 
 SETTINGS = Settings()

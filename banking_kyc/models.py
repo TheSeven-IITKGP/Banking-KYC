@@ -9,7 +9,6 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
-
 class KYCDocumentType(str, Enum):
     AADHAAR_CARD = "AADHAAR_CARD"
     PAN_CARD = "PAN_CARD"
@@ -17,7 +16,6 @@ class KYCDocumentType(str, Enum):
     DRIVING_LICENCE = "DRIVING_LICENCE"
     PASSPORT = "PASSPORT"
     UNKNOWN = "UNKNOWN"
-
 
 class ScenarioTag(str, Enum):
     EXACT_MATCH = "EXACT_MATCH"
@@ -28,7 +26,6 @@ class ScenarioTag(str, Enum):
     REJECT_BLUR_GLARE = "REJECT_BLUR_GLARE"
     MISMATCH_ID_FORMAT = "MISMATCH_ID_FORMAT"
 
-
 class VerificationDecision(str, Enum):
     AUTO_APPROVED = "AUTO_APPROVED"
     APPROVED_WITH_FUZZY_MATCH = "APPROVED_WITH_FUZZY_MATCH"
@@ -36,13 +33,11 @@ class VerificationDecision(str, Enum):
     REJECTED_SECURITY_VIOLATION = "REJECTED_SECURITY_VIOLATION"
     REJECTED_POOR_QUALITY = "REJECTED_POOR_QUALITY"
 
-
 class ProviderType(str, Enum):
     LOCAL_FINE_TUNED = "LOCAL_FINE_TUNED"
     VLLM = "VLLM"
     OLLAMA = "OLLAMA"
     HUGGINGFACE = "HUGGINGFACE"
-
 
 class Address(BaseModel):
     line1: Optional[str] = None
@@ -50,7 +45,6 @@ class Address(BaseModel):
     district: Optional[str] = None
     state: Optional[str] = None
     pincode: Optional[str] = None
-
 
 class ExtractedKYCData(BaseModel):
     document_type: KYCDocumentType = KYCDocumentType.UNKNOWN
@@ -63,7 +57,6 @@ class ExtractedKYCData(BaseModel):
     raw_text: Optional[str] = None
     extraction_confidence: float = 0.0
 
-
 class ApplicantProfile(BaseModel):
     submitted_name: str
     submitted_dob: Optional[str] = None
@@ -72,13 +65,11 @@ class ApplicantProfile(BaseModel):
     submitted_pincode: Optional[str] = None
     mobile_number: Optional[str] = None
 
-
 class ImageQualityFlags(BaseModel):
     blur_detected: bool = False
     glare_detected: bool = False
     orientation_angle: int = 0
     simulated_ocr_confidence: float = 0.95
-
 
 class FieldComparison(BaseModel):
     document_number_exact_match: bool = False
@@ -86,24 +77,22 @@ class FieldComparison(BaseModel):
     dob_match: bool = False
     pincode_match: Optional[bool] = None
 
-
 class SecurityCheckResult(BaseModel):
     is_safe: bool = True
-    risk_level: str = "LOW"  # LOW, MEDIUM, HIGH, CRITICAL
+    risk_level: str = "LOW"
     threat_type: Optional[str] = None
     details: str = "Clean"
     sanitized_input: Optional[str] = None
 
-
 class ProviderConfig(BaseModel):
     provider_type: ProviderType = ProviderType.LOCAL_FINE_TUNED
     model_name: str = "meta-llama/Meta-Llama-3-8B-Instruct-KYC"
+    adapter_path: Optional[str] = None
     base_url: Optional[str] = "http://localhost:8000/v1"
     api_key: Optional[str] = None
     temperature: float = 0.0
     max_tokens: int = 512
     timeout_seconds: int = 30
-
 
 class VerificationResult(BaseModel):
     record_id: str = "VERIF-LIVE-001"

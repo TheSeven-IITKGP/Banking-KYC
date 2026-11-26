@@ -7,14 +7,6 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
 
-# ==============================================================================
-# FinKYC: Indian Banking KYC QLoRA Fine-Tuning Job on Slurm Cluster (VM03)
-# Author: chandan bauri <chandanbauri441@gmail.com>
-# Node: upgrad-l40s-vm03 (NVIDIA L40S 46GB GPU)
-# Base Model: /storage/tracka/models/base_model_path.txt
-# Checkpoints: ~/checkpoints/job-$SLURM_JOB_ID/
-# ==============================================================================
-
 echo "=========================================================="
 echo " Starting FinKYC QLoRA Training on Slurm Cluster (VM03)"
 echo " Job ID:       $SLURM_JOB_ID"
@@ -27,11 +19,9 @@ echo "=========================================================="
 
 mkdir -p logs
 
-# Set output directory following cluster convention: ~/checkpoints/job-JOB_ID
 OUTPUT_DIR="${HOME}/checkpoints/job-${SLURM_JOB_ID}"
 mkdir -p "$OUTPUT_DIR"
 
-# Activate Python environment on VM03
 if [ -f "/storage/tracka/runtime/venv/bin/activate" ]; then
     echo "Activating shared cluster venv at /storage/tracka/runtime/venv..."
     source "/storage/tracka/runtime/venv/bin/activate"
@@ -47,13 +37,11 @@ if [ -f "/storage/tracka/runtime/venv/bin/python3" ]; then
 fi
 echo "Using Python: $($PYTHON_BIN --version 2>&1) at $PYTHON_BIN"
 
-# Locate training script
 TRAIN_SCRIPT="train_slurm.py"
 if [ ! -f "$TRAIN_SCRIPT" ] && [ -f "train.py" ]; then
     TRAIN_SCRIPT="train.py"
 fi
 
-# Locate training datasets
 TRAIN_DATA="kyc_train.jsonl"
 if [ ! -f "$TRAIN_DATA" ] && [ -f "data/processed/kyc_train.jsonl" ]; then
     TRAIN_DATA="data/processed/kyc_train.jsonl"
@@ -69,7 +57,6 @@ if [ ! -f "$TEST_DATA" ] && [ -f "data/processed/kyc_test.jsonl" ]; then
     TEST_DATA="data/processed/kyc_test.jsonl"
 fi
 
-# Detect cluster base model path if present
 MODEL_ARG="Qwen/Qwen2.5-7B-Instruct"
 if [ -f "/storage/tracka/models/base_model_path.txt" ]; then
     MODEL_ARG=$(cat /storage/tracka/models/base_model_path.txt | tr -d '\n')
@@ -82,7 +69,6 @@ echo "Val Data:        $VAL_DATA"
 echo "Test Data:       $TEST_DATA"
 echo "Output Dir:      $OUTPUT_DIR"
 
-# Execute QLoRA training on NVIDIA L40S GPU
 $PYTHON_BIN "$TRAIN_SCRIPT" \
     --model_name "$MODEL_ARG" \
     --train_data "$TRAIN_DATA" \

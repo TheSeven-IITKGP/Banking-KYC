@@ -17,7 +17,6 @@ REFUSALS = {
     "unverified": "I couldn't produce an answer with verifiable citations. Try rephrasing the question.",
 }
 
-
 class KYCAssistant:
     def __init__(self, retriever: Retriever, llm, corpus_version: str = ""):
         self.retriever = retriever
@@ -40,7 +39,7 @@ class KYCAssistant:
                 out = generate_answer(self.llm, info.redacted, hits)
             with timer("check_citations"):
                 bad = check_citations(out, hits)
-            if bad:                                     # one retry with feedback
+            if bad:
                 with timer("generate_retry"):
                     out = generate_answer(self.llm, info.redacted, hits, feedback=f"These tags were not in the context: {bad}.")
                 bad = check_citations(out, hits)
@@ -60,20 +59,17 @@ class KYCAssistant:
             entry["model"] = getattr(self.llm, "model", "unknown")
             entry["time"] = dt.datetime.now().isoformat(timespec="seconds")
             with SETTINGS.log_path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")     # never logs the raw question
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return result
-
 
 def _hit_view(h: Hit) -> dict:
     c = h.chunk
     return {"chunk_id": c.chunk_id, "doc_id": c.doc_id, "para_ref": c.para_ref, "heading_path": c.heading_path,
             "status": c.status, "authority": c.authority, "via": h.via, "score": round(h.score, 4), "text": c.text}
 
-
 def _corpus_version() -> str:
     p = SETTINGS.processed_dir / "corpus.json"
     return json.loads(p.read_text())["corpus_version"] if p.exists() else "unbuilt"
-
 
 def build_default_assistant() -> KYCAssistant:
     from .generate import LLMGenerator

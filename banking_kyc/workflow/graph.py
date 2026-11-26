@@ -29,7 +29,6 @@ from banking_kyc.ocr.preprocessor import ImageQualityAnalyzer
 from banking_kyc.providers.registry import registry
 from banking_kyc.security.guardrail import SecurityLayer
 
-
 class KYCWorkflowState(BaseModel):
     """Execution state container passed through LangGraph nodes."""
 
@@ -49,7 +48,6 @@ class KYCWorkflowState(BaseModel):
     start_time: float = Field(default_factory=time.time)
     end_time: Optional[float] = None
 
-
 class LangGraphKYCWorkflow:
     """Production StateGraph verifying KYC records."""
 
@@ -62,8 +60,6 @@ class LangGraphKYCWorkflow:
         self.quality_analyzer = ImageQualityAnalyzer(
             min_confidence_threshold=self.config.thresholds.min_ocr_confidence
         )
-
-    # ==================== NODE DEFINITIONS ====================
 
     def inbound_security_node(self, state: KYCWorkflowState) -> KYCWorkflowState:
         t0 = time.time()
@@ -97,9 +93,9 @@ class LangGraphKYCWorkflow:
             state.error_message = msg
         return state
 
-    def extraction_node(self, state: KYCWorkflowState) -> KYCWorkflowState:
+    def extraction_node(self, state: KYCWorkflowState, provider_override: Any = None) -> KYCWorkflowState:
         t0 = time.time()
-        provider = registry.get_active_provider()
+        provider = provider_override or registry.get_active_provider()
         extracted = provider.extract_kyc_data(state.raw_ocr_text)
         state.extracted_data = extracted
         state.execution_trace.append({
@@ -123,22 +119,18 @@ class LangGraphKYCWorkflow:
             })
             return state
 
-        # Document Number Matching
         norm_ext_doc = DocumentNormalizer.normalize_aadhaar(ext.document_number) if "AADHAAR" in ext.document_type.value else (ext.document_number or "").strip().upper()
         norm_sub_doc = DocumentNormalizer.normalize_aadhaar(prof.submitted_document_number) if "AADHAAR" in prof.submitted_document_type.upper() else (prof.submitted_document_number or "").strip().upper()
         doc_num_match = (norm_ext_doc == norm_sub_doc) and bool(norm_ext_doc)
 
-        # Name Matching
         norm_ext_name = DocumentNormalizer.normalize_name(ext.full_name)
         norm_sub_name = DocumentNormalizer.normalize_name(prof.submitted_name)
         sim_score = DocumentNormalizer.calculate_levenshtein_ratio(norm_ext_name, norm_sub_name)
 
-        # DOB Matching
         norm_ext_dob = DocumentNormalizer.normalize_date(ext.date_of_birth)
         norm_sub_dob = DocumentNormalizer.normalize_date(prof.submitted_dob)
         dob_match = (norm_ext_dob == norm_sub_dob) and bool(norm_ext_dob)
 
-        # Pincode Matching
         pincode_match = None
         if ext.address and ext.address.pincode and prof.submitted_pincode:
             pincode_match = (ext.address.pincode.strip() == prof.submitted_pincode.strip())
@@ -164,10 +156,6 @@ class LangGraphKYCWorkflow:
         fc = state.field_comparison
         thresh = self.config.thresholds
 
-        # Policy Logic:
-        # 1. Document number must match exactly
-        # 2. DOB must match
-        # 3. Name similarity controls approval vs fuzzy vs reject
         if not fc.document_number_exact_match:
             state.overall_match = False
             state.decision = VerificationDecision.MANUAL_REVIEW_OR_REJECT
@@ -222,7 +210,6 @@ class LangGraphKYCWorkflow:
 
     def outbound_redaction_node(self, state: KYCWorkflowState) -> KYCWorkflowState:
         t0 = time.time()
-        # Build sanitized customer / dashboard view
         raw_view: Dict[str, Any] = {
             "record_id": state.record_id,
             "decision": state.decision.value,
@@ -248,41 +235,33 @@ class LangGraphKYCWorkflow:
         })
         return state
 
-    # ==================== PIPELINE EXECUTION ====================
-
-    def execute(self, state: KYCWorkflowState) -> VerificationResult:
+    def execute(self, state: KYCWorkflowState, provider_override: Any = None) -> VerificationResult:
         """Executes the StateGraph transitions deterministically."""
-        # Step 1: Inbound Security Guard
         state = self.inbound_security_node(state)
         if not state.security_check.is_safe:
             state = self.security_rejection_node(state)
             state = self.outbound_redaction_node(state)
-            return self._build_result(state)
+            return self._build_result(state, provider_override=provider_override)
 
-        # Step 2: OCR Quality Analyzer
         state = self.ocr_quality_node(state)
         if state.error_message:
             state = self.quality_rejection_node(state)
             state = self.outbound_redaction_node(state)
-            return self._build_result(state)
+            return self._build_result(state, provider_override=provider_override)
 
-        # Step 3: Model Extraction
-        state = self.extraction_node(state)
+        state = self.extraction_node(state, provider_override=provider_override)
 
-        # Step 4: Multi-Field Comparison
         state = self.field_matching_node(state)
 
-        # Step 5: Decision Policy
         state = self.decision_node(state)
 
-        # Step 6: Outbound PII Redaction
         state = self.outbound_redaction_node(state)
 
-        return self._build_result(state)
+        return self._build_result(state, provider_override=provider_override)
 
-    def _build_result(self, state: KYCWorkflowState) -> VerificationResult:
+    def _build_result(self, state: KYCWorkflowState, provider_override: Any = None) -> VerificationResult:
         total_time = (state.end_time - state.start_time) * 1000 if state.end_time else 0.0
-        active_prov = registry.get_active_provider().provider_name
+        active_prov = (provider_override or registry.get_active_provider()).provider_name
         return VerificationResult(
             record_id=state.record_id,
             overall_match=state.overall_match,

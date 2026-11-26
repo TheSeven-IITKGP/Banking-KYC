@@ -11,28 +11,22 @@ from __future__ import annotations
 import re
 from typing import Any, Dict
 
-
 class PIIRedactor:
     """Masks Indian national identity numbers, phones, and sensitive identifiers."""
 
-    # Aadhaar: mask first 8 digits -> XXXX-XXXX-1234
     AADHAAR_FULL_PATTERN = re.compile(r"\b(\d{4})[- ]?(\d{4})[- ]?(\d{4})\b")
     AADHAAR_PARTIAL_PATTERN = re.compile(r"\bXXXX[- ]?XXXX[- ]?(\d{4})\b", re.IGNORECASE)
 
-    # PAN: mask middle 4 characters -> ABCXXXX12F
     PAN_PATTERN = re.compile(r"\b([A-Z]{3})([A-Z]{2}\d{2})(\d{2}[A-Z])\b")
 
-    # Mobile: mask first 6 digits -> +91-XXXXXX7890
     MOBILE_PATTERN = re.compile(r"(\+91[- ]?)?([6-9]\d{9})")
 
-    # Email redaction
     EMAIL_PATTERN = re.compile(r"\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Z|a-z]{2,})\b")
 
     @classmethod
     def mask_aadhaar(cls, val: str) -> str:
         if not val:
             return val
-        # If already masked
         if cls.AADHAAR_PARTIAL_PATTERN.search(val):
             return cls.AADHAAR_PARTIAL_PATTERN.sub(r"XXXX-XXXX-\1", val)
         return cls.AADHAAR_FULL_PATTERN.sub(r"XXXX-XXXX-\3", val)

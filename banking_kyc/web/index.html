@@ -3,60 +3,186 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FinKYC - Enterprise Small Model Verification Platform</title>
+  <meta name="color-scheme" content="dark">
+  <title>FinKYC - Deliverables &amp; Verification Platform</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="app-header">
     <div class="header-left">
-      <div class="logo-icon">🏛️</div>
       <div>
-        <h1>FinKYC Enterprise Platform</h1>
-        <p class="subtitle">Track A Small-Model Adaptation • QLoRA Fine-Tuning • LangGraph Orchestration</p>
+        <h1>FinKYC Combined Platform</h1>
+        <p class="subtitle" id="headerSubtitle">Track A Small-Model Adaptation • QLoRA Job-178 • RBI Hybrid RAG • Dual-Stage Security</p>
       </div>
     </div>
     <div class="header-right">
-      <div class="provider-badge" id="activeProviderBadge">Active: <span id="currentProviderName">LOCAL_FINE_TUNED</span></div>
-      <div class="author-badge">Lead Engineer: <strong>Chandan Bauri</strong></div>
+      <div class="provider-badge" id="sessionRoleBadge" hidden>Role: <span id="sessionRoleLabel">Guest</span></div>
+      <div class="provider-badge" id="activeProviderBadge" hidden>Active: <span id="currentProviderName">LOCAL_FINE_TUNED</span></div>
+      <button type="button" class="btn btn-secondary btn-sm" id="logoutBtn" hidden>Switch Role / Sign Out</button>
     </div>
   </header>
 
+  <section id="loginSection" class="login-shell" aria-labelledby="loginShellTitle">
+    <div class="card login-card">
+      <div class="login-header-row">
+        <div>
+          <h2 id="loginShellTitle">FinKYC Account Access</h2>
+          <p class="section-desc">Sign in as End User for KYC document chat (Fine-Tuned + RAG only) or as Admin for the full deliverables workbench.</p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="reopenRoleDialogBtn">Choose Role Popup</button>
+      </div>
+
+      <div class="role-tabs" role="tablist" aria-label="Account role">
+        <button type="button" class="sub-tab-btn active" id="tabUserLoginBtn" role="tab" aria-selected="true" aria-controls="userLoginForm">End User Login</button>
+        <button type="button" class="sub-tab-btn" id="tabAdminLoginBtn" role="tab" aria-selected="false" aria-controls="adminLoginForm">Admin Login</button>
+      </div>
+
+      <div id="loginErrorBanner" class="warn" role="status" aria-live="polite" hidden></div>
+
+      <form id="userLoginForm" method="POST" action="/api/login" aria-labelledby="userLoginHeading">
+        <h3 id="userLoginHeading" class="subsection-title">End User Sign In</h3>
+        <p class="section-desc">Bare-minimum chat interface with KYC document upload using Fine-Tuned Model + RAG only.</p>
+        <div class="form-group">
+          <label for="userEmail">End User ID (Email)</label>
+          <input type="email" id="userEmail" name="email" autocomplete="username" spellcheck="false" autocorrect="off" autocapitalize="none" enterkeyhint="next" data-error="userEmailError" required>
+          <div id="userEmailError" class="error-msg">Error: Enter a valid End User email address.</div>
+        </div>
+        <div class="form-group">
+          <label for="userPassword">Password</label>
+          <div class="password-row">
+            <input type="password" id="userPassword" name="password" autocomplete="current-password" enterkeyhint="done" data-error="userPasswordError" required>
+            <button type="button" class="btn btn-secondary btn-sm pwd-toggle-btn" id="toggleUserPwdBtn" aria-pressed="false" aria-controls="userPassword">Show</button>
+          </div>
+          <div id="userPasswordError" class="error-msg">Error: Enter your End User password.</div>
+        </div>
+        <button type="submit" id="userLoginSubmitBtn" class="btn btn-primary btn-block">Sign In as End User</button>
+      </form>
+
+      <form id="adminLoginForm" method="POST" action="/api/login" aria-labelledby="adminLoginHeading" hidden>
+        <h3 id="adminLoginHeading" class="subsection-title">Admin Sign In</h3>
+        <p class="section-desc">Full 4-setup evaluation dashboard, benchmarks, model card, security logs, and provider deployment controls.</p>
+        <div class="form-group">
+          <label for="adminEmail">Admin ID (Email)</label>
+          <input type="email" id="adminEmail" name="email" autocomplete="username" spellcheck="false" autocorrect="off" autocapitalize="none" enterkeyhint="next" data-error="adminEmailError" required>
+          <div id="adminEmailError" class="error-msg">Error: Enter a valid Admin email address.</div>
+        </div>
+        <div class="form-group">
+          <label for="adminPassword">Password</label>
+          <div class="password-row">
+            <input type="password" id="adminPassword" name="password" autocomplete="current-password" enterkeyhint="done" data-error="adminPasswordError" required>
+            <button type="button" class="btn btn-secondary btn-sm pwd-toggle-btn" id="toggleAdminPwdBtn" aria-pressed="false" aria-controls="adminPassword">Show</button>
+          </div>
+          <div id="adminPasswordError" class="error-msg">Error: Enter your Admin password.</div>
+        </div>
+        <button type="submit" id="adminLoginSubmitBtn" class="btn btn-primary btn-block">Sign In as Admin</button>
+      </form>
+
+      <div id="dummyCredsBox" class="dummy-creds-box" hidden>
+        <div class="dummy-creds-header">
+          <strong>Demo Credentials Revealed</strong>
+          <span class="rag-subsystem-meta">Press Ctrl+Shift+U or Cmd+Shift+U to toggle</span>
+        </div>
+        <div class="dummy-creds-grid">
+          <div class="dummy-cred-item">
+            <div><strong>End User ID:</strong> <code>user@finkyc.in</code></div>
+            <div><strong>Password:</strong> <code>User@1234</code></div>
+            <button type="button" class="btn btn-secondary btn-sm" id="fillUserCredsBtn">Use End User</button>
+          </div>
+          <div class="dummy-cred-item">
+            <div><strong>Admin ID:</strong> <code>admin@finkyc.in</code></div>
+            <div><strong>Password:</strong> <code>Admin@1234</code></div>
+            <button type="button" class="btn btn-secondary btn-sm" id="fillAdminCredsBtn">Use Admin</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="login-shortcut-hint">Press Ctrl+Shift+U or Cmd+Shift+U to view dummy ID and password for End User or Admin.</p>
+    </div>
+  </section>
+
+  <section id="userChatSection" class="chat-shell" aria-labelledby="userChatTitle" hidden>
+    <div class="card chat-card">
+      <div class="chat-topbar">
+        <div>
+          <h2 id="userChatTitle">KYC Verification &amp; Regulatory Chat</h2>
+          <p class="section-desc">Upload your KYC document and submit a KYC query.</p>
+        </div>
+        <span class="trigger-tick ready">Fine-Tuned Model + RAG Only</span>
+      </div>
+
+      <div id="chatMessages" class="chat-messages" aria-live="polite">
+        <div class="chat-msg assistant">
+          <div class="chat-msg-meta">FinKYC Assistant • Fine-Tuned QLoRA + RBI RAG</div>
+          <div class="chat-msg-body">Upload a KYC document (<code>.txt</code>, <code>.json</code>, <code>.pdf</code>, <code>.png</code>, <code>.jpg</code>) and ask your KYC verification or RBI regulatory question below.</div>
+        </div>
+      </div>
+
+      <form id="chatForm" class="chat-composer" method="POST" action="/api/chat-kyc">
+        <div class="chat-attach-bar">
+          <label for="kycDocUpload" class="btn btn-secondary btn-sm">Upload KYC Document</label>
+          <input type="file" id="kycDocUpload" name="kycDocUpload" accept=".txt,.json,.csv,.md,.pdf,.png,.jpg,.jpeg" class="visually-hidden">
+          <div id="attachedFileChip" class="file-chip" hidden>
+            <span id="attachedFileName"></span>
+            <button type="button" id="clearAttachmentBtn" class="file-chip-clear" aria-label="Remove attached document">Remove</button>
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <label for="chatInput" class="visually-hidden">KYC Query</label>
+          <textarea id="chatInput" name="query" rows="2" placeholder="Ask a KYC question or describe what to verify in the uploaded document..." enterkeyhint="send"></textarea>
+          <button type="submit" id="chatSendBtn" class="btn btn-primary">Send</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div id="adminWorkspace" hidden>
   <nav class="tab-nav">
-    <button class="tab-btn active" id="tabUserBtn" onclick="switchTab('user')">👤 User Verification Portal</button>
-    <button class="tab-btn" id="tabAdminBtn" onclick="switchTab('admin')">⚙️ Admin Control Center</button>
+    <button class="tab-btn active" id="tabUserBtn" onclick="switchTab('user')">Verification &amp; Live Evaluation</button>
+    <button class="tab-btn" id="tabBenchBtn" onclick="switchTab('bench')">Benchmarks &amp; Ablations</button>
+    <button class="tab-btn" id="tabModelCardBtn" onclick="switchTab('modelcard')">Model Card &amp; Deliverables</button>
+    <button class="tab-btn" id="tabAdminBtn" onclick="switchTab('admin')">Admin, Security &amp; Deployment</button>
   </nav>
 
   <main class="container">
-    <p class="muted" style="margin-bottom: 1.25rem; font-size: 0.9rem; color: #666; line-height: 1.5;">
-      Extract and verify Indian bank KYC documents. Every extraction is validated against applicant data with dual-stage security.
-      Study aid & production verification over Indian identity documents — not compliance or legal advice. Customer details are masked and redacted before egress.
+    <p class="page-intro">
+      Select any of the four experimental setups (Base Model, Base + RAG, Fine-Tuned Model, or Fine-Tuned + RAG), submit an OCR scan and prompt, then click the Realtime Evaluation or per-setup triggers when their Ready tick appears.
     </p>
 
-    <!-- USER TESTING PORTAL -->
     <section id="userSection" class="view-section active">
       <div class="card-sample-bar">
-        <label for="sampleScenarioSelect"><strong>Load Benchmark Dataset Record:</strong></label>
+        <label for="setupSelect"><strong>Model Setup:</strong></label>
+        <select id="setupSelect" class="setup-select">
+          <option value="base">Base Model (Qwen2.5-7B-Instruct)</option>
+          <option value="base_rag">Base Model + RAG (Qwen2.5-7B-Instruct + RBI Corpus)</option>
+          <option value="fine_tuned">Fine-Tuned Model (Qwen2.5-7B QLoRA Job-178)</option>
+          <option value="fine_tuned_rag" selected>Fine-Tuned Model + RAG (Qwen2.5-7B QLoRA + RBI Corpus)</option>
+        </select>
+        <label for="sampleScenarioSelect"><strong>Scenario:</strong></label>
         <select id="sampleScenarioSelect">
           <option value="EXACT_MATCH">Exact Match (Auto Approve)</option>
           <option value="FUZZY_MATCH_FORMAT_DIFF">Fuzzy Match - Format Diff (Aadhaar Initials)</option>
           <option value="FUZZY_MATCH_OCR_NOISE">Fuzzy Match - OCR Character Noise</option>
           <option value="MISMATCH_NAME">Mismatch - Name Variation (Review/Reject)</option>
           <option value="MISMATCH_DOB">Mismatch - Date of Birth</option>
-          <option value="REJECT_BLUR_GLARE">Reject - Severe Blur & Glare</option>
+          <option value="REJECT_BLUR_GLARE">Reject - Severe Blur &amp; Glare</option>
           <option value="INJECTION_TEST">Security Test - Prompt Injection Attack</option>
         </select>
-        <button class="btn btn-secondary" onclick="loadSelectedSample()">📥 Load Sample</button>
-        <button class="btn btn-secondary" onclick="loadRandomSample()">🎲 Random Sample</button>
+        <button type="button" class="btn btn-secondary" onclick="loadSelectedSample()">Load Sample</button>
+        <button type="button" class="btn btn-secondary" onclick="loadRandomSample()">Random Sample</button>
       </div>
 
       <div class="grid-2col">
-        <!-- Input Column -->
         <div class="card">
-          <h2>1. KYC Document & Applicant Data</h2>
-          
+          <h2>1. Prompt, Document &amp; Applicant Data</h2>
+
+          <div class="form-group">
+            <label for="userPrompt">User Prompt / Regulatory Question (Optional):</label>
+            <input type="text" id="userPrompt" placeholder="e.g. Verify document and cite RBI officially valid document KYC rules">
+          </div>
+
           <div class="form-group">
             <label for="rawOcrText">Raw OCR Scan Text:</label>
-            <textarea id="rawOcrText" rows="9" placeholder="Paste extracted OCR text from Aadhaar, PAN, Voter ID, Passport, or DL..."></textarea>
+            <textarea id="rawOcrText" rows="8" placeholder="Paste extracted OCR text from Aadhaar, PAN, Voter ID, Passport, or DL..."></textarea>
           </div>
 
           <div class="quality-grid">
@@ -72,8 +198,8 @@
             </div>
           </div>
 
-          <h3 style="margin-top: 1.2rem; font-size: 1rem; color: #2d3748;">Applicant Submitted Profile</h3>
-          
+          <h3 class="subsection-title">Applicant Submitted Profile</h3>
+
           <div class="grid-2col-compact">
             <div class="form-group">
               <label for="applicantName">Submitted Full Name:</label>
@@ -107,16 +233,14 @@
             </div>
           </div>
 
-          <button class="btn btn-primary btn-block" id="btnVerify" onclick="executeVerification()">
-            ⚡ Run KYC Verification Pipeline
+          <button type="button" class="btn btn-primary btn-block" id="btnVerify" onclick="executeVerification()">
+            Run KYC Verification Pipeline
           </button>
         </div>
 
-        <!-- Verification Results Column -->
         <div class="card">
-          <h2>2. LangGraph Execution & Verification Results</h2>
+          <h2>2. Execution, Triggers &amp; Selected Output</h2>
 
-          <!-- Pipeline Graph Visualizer -->
           <div class="pipeline-track" id="pipelineTrack">
             <div class="pipeline-step" id="stepSecurity">
               <div class="step-num">1</div>
@@ -149,32 +273,63 @@
             </div>
           </div>
 
+          <div class="trigger-panel">
+            <div class="trigger-group">
+              <span class="trigger-heading">Realtime Prompt Evaluation (Popup opens on click)</span>
+              <div class="trigger-row">
+                <button type="button" id="realtimeEvalTrigger" class="btn btn-secondary trigger-btn" onclick="openRealtimeEvalDialog()" disabled>
+                  <span>Realtime Evaluation</span>
+                  <span id="realtimeEvalTick" class="trigger-tick">Pending</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="trigger-group">
+              <span class="trigger-heading">Overall Results by Setup (Separate triggers)</span>
+              <div class="trigger-grid">
+                <button type="button" id="triggerSetupBase" class="btn btn-secondary trigger-btn" data-setup="base" onclick="openSetupResultDialog('base')" disabled>
+                  <span>Base Model</span>
+                  <span class="trigger-tick">Pending</span>
+                </button>
+                <button type="button" id="triggerSetupBaseRag" class="btn btn-secondary trigger-btn" data-setup="base_rag" onclick="openSetupResultDialog('base_rag')" disabled>
+                  <span>Base Model + RAG</span>
+                  <span class="trigger-tick">Pending</span>
+                </button>
+                <button type="button" id="triggerSetupFt" class="btn btn-secondary trigger-btn" data-setup="fine_tuned" onclick="openSetupResultDialog('fine_tuned')" disabled>
+                  <span>Fine-Tuned Model</span>
+                  <span class="trigger-tick">Pending</span>
+                </button>
+                <button type="button" id="triggerSetupFtRag" class="btn btn-secondary trigger-btn" data-setup="fine_tuned_rag" onclick="openSetupResultDialog('fine_tuned_rag')" disabled>
+                  <span>Fine-Tuned Model + RAG</span>
+                  <span class="trigger-tick">Pending</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div id="resultPlaceholder" class="empty-state">
-            <p>Ready to verify. Select a dataset sample or enter text, then click "Run KYC Verification Pipeline".</p>
+            <p>Select a setup and sample or enter a prompt, then click "Run KYC Verification Pipeline". Ready ticks will appear on the triggers above.</p>
           </div>
 
           <div id="resultContent" style="display: none;">
-            <!-- Warning / Alert Notice (matching RAG UI warn box) -->
             <div id="securityOrPiiAlert" class="warn" style="display: none;"></div>
 
-            <!-- Big Decision Banner (matching RAG UI status badge) -->
             <div class="decision-banner auto-approved" id="decisionBanner">
               <span class="decision-title" id="decisionTitle">AUTO_APPROVED</span>
               <span class="decision-sub" id="decisionSub">Overall Match: True • Processing Time: 18.2 ms</span>
             </div>
 
-            <!-- Main Narrative Answer (matching RAG UI answer text) -->
-            <div id="narrativeAnswer" class="answer" style="margin: 0.8rem 0; font-size: 0.95rem; line-height: 1.5; color: #1a1a1a;"></div>
+            <div id="narrativeAnswer" class="answer answer-text"></div>
 
-            <!-- Sources Cited (matching RAG UI expander structure) -->
-            <h3 style="font-size: 1rem; margin-top: 1rem; margin-bottom: 0.4rem; color: #1a1a1a;">Sources cited</h3>
+            <h3 class="sources-heading">Sources cited</h3>
             <details class="source" id="sourceCitedDetails" open>
               <summary id="sourceCitedSummary">Document Extraction Evidence</summary>
-              <div class="heading" id="sourceCitedHeading" style="color: #666; font-size: 0.85rem; margin: 0.3rem 0;"></div>
-              <pre id="sourceCitedText" style="white-space: pre-wrap; font-family: inherit; font-size: 0.85rem; color: #333; margin-top: 0.4rem;"></pre>
+              <div class="heading" id="sourceCitedHeading"></div>
+              <pre id="sourceCitedText"></pre>
             </details>
 
-            <!-- Score Cards Grid -->
+            <div id="ragCitationsContainer"></div>
+
             <div class="metrics-grid">
               <div class="metric-card">
                 <div class="metric-val" id="metricNameScore">100%</div>
@@ -194,11 +349,10 @@
               </div>
             </div>
 
-            <!-- Extracted vs Sanitized View -->
             <div class="tabs-sub">
-              <button class="sub-tab-btn active" onclick="showSubTab('sanitized')">🛡️ Sanitized Customer View</button>
-              <button class="sub-tab-btn" onclick="showSubTab('raw')">🔍 Raw Model JSON</button>
-              <button class="sub-tab-btn" onclick="showSubTab('trace')">⏱️ Execution Trace</button>
+              <button type="button" class="sub-tab-btn active" onclick="showSubTab('sanitized')">Sanitized Customer View</button>
+              <button type="button" class="sub-tab-btn" onclick="showSubTab('raw')">Raw Model JSON</button>
+              <button type="button" class="sub-tab-btn" onclick="showSubTab('trace')">Execution Trace</button>
             </div>
 
             <div id="subViewSanitized" class="sub-view active">
@@ -215,20 +369,95 @@
       </div>
     </section>
 
-    <!-- ADMIN CONTROL CENTER -->
+    <section id="benchSection" class="view-section">
+      <div class="card">
+        <h2>Capstone Benchmark &amp; 4-Way Setup Comparison</h2>
+        <p class="section-desc">Comparing Base Model, Base + RAG, Fine-Tuned Model, and Fine-Tuned + RAG across task metrics, ablations, and LLM judge scores (300 held-out test records).</p>
+
+        <div class="tabs-sub" style="margin-bottom: 0.8rem;">
+          <button type="button" class="sub-tab-btn active" id="btnTabFourWay" onclick="showBenchmarkTab('fourway')">4-Way Setup Comparison (Slide 83)</button>
+          <button type="button" class="sub-tab-btn" id="btnTabAblation" onclick="showBenchmarkTab('ablation')">QLoRA Parameter Ablations (Slide 82)</button>
+        </div>
+
+        <div id="viewFourWayTable" class="table-container">
+          <table class="benchmark-table">
+            <thead>
+              <tr>
+                <th>Experimental Setup</th>
+                <th>EM %</th>
+                <th>Doc ID %</th>
+                <th>Citation %</th>
+                <th>Halluc %</th>
+                <th>Latency</th>
+                <th>Judge Faith</th>
+                <th>Judge Score</th>
+              </tr>
+            </thead>
+            <tbody id="fourWayTableBody"></tbody>
+          </table>
+        </div>
+
+        <div id="viewAblationTable" class="table-container" style="display: none;">
+          <table class="benchmark-table">
+            <thead>
+              <tr>
+                <th>Model Variant</th>
+                <th>EM %</th>
+                <th>Doc Num %</th>
+                <th>Name F1</th>
+                <th>JSON %</th>
+                <th>Latency</th>
+              </tr>
+            </thead>
+            <tbody id="benchmarkTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="modelCardSection" class="view-section">
+      <div class="grid-2col">
+        <div class="card">
+          <h2>Fine-Tuned Model Card (Job 178)</h2>
+          <p class="section-desc">Production adapter card synced from <code>MODEL_CARD.md</code> and <code>models/adapters/qwen2.5-7b-qlora/</code>.</p>
+          <div id="modelCardSummary" class="model-card-grid"></div>
+          <h3 class="subsection-title">Responsible AI &amp; Failure Policy</h3>
+          <ul class="deliverables-list">
+            <li><strong>Inbound Guard:</strong> Prompt injection, jailbreak, XSS/SQL, and out-of-domain filters trigger <code>REJECTED_SECURITY_VIOLATION</code>.</li>
+            <li><strong>Optical Quality Refusal:</strong> Blur/glare or OCR confidence below 0.70 returns <code>REJECTED_POOR_QUALITY</code> without guessing.</li>
+            <li><strong>Outbound PII Masking:</strong> Aadhaar masked to <code>XXXX-XXXX-NNNN</code>, PAN middle digits masked, mobile masked to <code>+91-XXXXXXNNNN</code>.</li>
+            <li><strong>Discrepancy Escalation:</strong> ID, DOB, or name mismatches below threshold route to <code>MANUAL_REVIEW_OR_REJECT</code>.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h2>Capstone Deliverables Checklist</h2>
+          <p class="section-desc">Track A implementation artifacts mapped to Slide 82 &amp; Slide 83 deliverables.</p>
+          <ul class="deliverables-list">
+            <li><strong>1. Reproducible Codebase:</strong> Modular <code>banking_kyc/</code> + <code>src/kycrag/</code> with automated unit suite (<code>make test</code>).</li>
+            <li><strong>2. Experiment &amp; Trace Dashboard:</strong> Combined 4-setup portal, realtime evaluation popup, 4-way matrix, and LangGraph step tracer.</li>
+            <li><strong>3. Model Card &amp; Responsible AI:</strong> <code>MODEL_CARD.md</code> and HuggingFace PEFT card in <code>models/adapters/qwen2.5-7b-qlora/README.md</code>.</li>
+            <li><strong>4. Technical &amp; Deployment Docs:</strong> <code>documentation/TECHNICAL_REPORT.md</code>, <code>DEPLOYMENT_PLATFORMS.md</code>, and <code>CODEBASE_REFERENCE.md</code>.</li>
+            <li><strong>5. Demo Script (&lt;10 min):</strong> 7:30-minute walkthrough in <code>documentation/VIDEO_DEMO_SCRIPT.md</code>.</li>
+          </ul>
+          <h3 class="subsection-title">Raw Training Metadata</h3>
+          <pre id="modelCardMetaPre" class="code-block"></pre>
+        </div>
+      </div>
+    </section>
+
     <section id="adminSection" class="view-section">
       <div class="grid-2col">
-        <!-- Provider & Hyperparameter Controls -->
         <div class="card">
           <h2>1. Pluggable Inference Provider Hot-Swapping</h2>
-          <p class="section-desc">Switch between the production fine-tuned local adapter and external enterprise engines on the fly.</p>
+          <p class="section-desc">Qwen2.5-7B-Instruct serves Base / Base + RAG setups; QLoRA Job-178 adapter serves Fine-Tuned / Fine-Tuned + RAG.</p>
 
           <div class="form-group">
             <label for="adminActiveProviderSelect">Active Model Provider:</label>
             <select id="adminActiveProviderSelect" onchange="onAdminProviderChanged()">
-              <option value="LOCAL_FINE_TUNED">Local Fine-Tuned (Llama-3-8B QLoRA r=16)</option>
-              <option value="VLLM">vLLM / OpenAI API (Docker Container)</option>
-              <option value="OLLAMA">Ollama Local Daemon</option>
+              <option value="LOCAL_FINE_TUNED">Local Fine-Tuned (Qwen2.5-7B QLoRA Job-178)</option>
+              <option value="VLLM">vLLM / OpenAI API (GPU Container)</option>
+              <option value="OLLAMA">Ollama Local Daemon (Local Base Engine)</option>
               <option value="HUGGINGFACE">Hugging Face Transformers Pipeline</option>
             </select>
           </div>
@@ -241,7 +470,7 @@
           <div class="grid-2col-compact">
             <div class="form-group">
               <label for="providerModelName">Model Identifier:</label>
-              <input type="text" id="providerModelName" value="meta-llama/Meta-Llama-3-8B-Instruct">
+              <input type="text" id="providerModelName" value="Qwen/Qwen2.5-7B-Instruct">
             </div>
             <div class="form-group">
               <label for="providerApiKey">API Key (Optional):</label>
@@ -257,11 +486,11 @@
             </div>
           </div>
 
-          <button class="btn btn-primary" onclick="saveProviderSettings()">💾 Update Provider Configuration</button>
+          <button type="button" class="btn btn-primary" onclick="saveProviderSettings()">Update Provider Configuration</button>
 
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;">
+          <hr class="section-divider">
 
-          <h2>2. Decision Policy & Verification Thresholds</h2>
+          <h2>2. Decision Policy &amp; Verification Thresholds</h2>
           <div class="form-group">
             <label for="threshNameSim">Fuzzy Name Similarity Threshold: <span id="threshNameSimVal">0.80</span></label>
             <input type="range" id="threshNameSim" min="0.50" max="0.95" step="0.05" value="0.80" oninput="document.getElementById('threshNameSimVal').innerText=this.value">
@@ -281,9 +510,8 @@
           </div>
         </div>
 
-        <!-- Security & Guardrail Controls + Benchmarks -->
         <div class="card">
-          <h2>3. Dual-Stage Security & Guardrails</h2>
+          <h2>3. Dual-Stage Security &amp; Guardrails</h2>
           <div class="quality-grid" style="margin-bottom: 1rem;">
             <label class="checkbox-label">
               <input type="checkbox" id="secPromptGuard" checked> Inbound Prompt Injection Defense
@@ -296,74 +524,77 @@
             </label>
           </div>
 
-          <button class="btn btn-secondary" onclick="savePolicySettings()">🛡️ Apply Security Policies</button>
+          <button type="button" class="btn btn-secondary" onclick="savePolicySettings()">Apply Security Policies</button>
 
-          <h2 style="margin-top: 1.5rem;">4. Capstone Benchmark & Comparison Setups (Slide 82 & 83)</h2>
-          <p class="section-desc">Comparing Base Model, Base + RAG, Fine-Tuned, and Fine-Tuned + RAG on task metrics and LLM judge.</p>
-          
-          <div class="tabs-sub" style="margin-bottom: 0.8rem;">
-            <button class="sub-tab-btn active" id="btnTabFourWay" onclick="showBenchmarkTab('fourway')">🏆 4-Way Setup Comparison (Slide 83)</button>
-            <button class="sub-tab-btn" id="btnTabAblation" onclick="showBenchmarkTab('ablation')">🔬 QLoRA Parameter Ablations</button>
-          </div>
-
-          <!-- 4-Way Comparison Table (Base, Base+RAG, FT, FT+RAG) -->
-          <div id="viewFourWayTable" class="table-container">
-            <table class="benchmark-table">
-              <thead>
-                <tr>
-                  <th>Experimental Setup</th>
-                  <th>EM %</th>
-                  <th>Doc ID %</th>
-                  <th>Citation %</th>
-                  <th>Halluc %</th>
-                  <th>Latency</th>
-                  <th>Judge Faith</th>
-                  <th>Judge Score</th>
-                </tr>
-              </thead>
-              <tbody id="fourWayTableBody">
-                <!-- Dynamically loaded -->
-              </tbody>
-            </table>
-          </div>
-
-          <!-- QLoRA Ablation Table -->
-          <div id="viewAblationTable" class="table-container" style="display: none;">
-            <table class="benchmark-table">
-              <thead>
-                <tr>
-                  <th>Model Variant</th>
-                  <th>EM %</th>
-                  <th>Doc Num %</th>
-                  <th>Name F1</th>
-                  <th>JSON %</th>
-                  <th>Latency</th>
-                </tr>
-              </thead>
-              <tbody id="benchmarkTableBody">
-                <!-- Dynamically loaded -->
-              </tbody>
-            </table>
-          </div>
-
-          <h2 style="margin-top: 1.5rem;">5. Integrated RBI Regulatory RAG Subsystem</h2>
-          <p class="section-desc">Retrieval-Augmented Generation over RBI Master Directions on KYC with paragraph citations and BM25 hybrid search.</p>
-          <div style="background: #f1f5f9; padding: 0.85rem; border-radius: 6px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+          <h2 style="margin-top: 1.5rem;">4. Cloudflare &amp; Split-Model Deployment Status</h2>
+          <p class="section-desc">Cloudflare Workers serve edge UI and proxy <code>/api/*</code> to GPU/local model origin via Tunnel or container host.</p>
+          <div id="deploymentStatusBox" class="rag-subsystem-box">
             <div>
-              <strong>Subsystem:</strong> Active & Unified (`src/kycrag`)<br>
-              <span style="color: #64748b;">CLI: `make build-rag` • App: `make serve-rag` (port 8501)</span>
+              <strong>Deployment Target:</strong> Checking...
             </div>
-            <a href="http://127.0.0.1:8501" target="_blank" class="btn btn-primary" style="text-decoration: none; font-size: 0.8rem; padding: 0.4rem 0.8rem;">Open RAG Explorer ↗</a>
+            <a href="http://127.0.0.1:8501" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="text-decoration: none; font-size: 0.8rem; padding: 0.4rem 0.8rem;">Open RAG Streamlit ↗</a>
           </div>
 
-          <h2 style="margin-top: 1.5rem;">6. Security Audit Log Stream</h2>
+          <h2 style="margin-top: 1.5rem;">5. Security Audit Log Stream</h2>
           <div id="auditLogStream" class="audit-log-box">
-            <p style="color: #718096; font-size: 0.85rem;">Listening for security events...</p>
+            <p class="audit-log-empty">Listening for security events...</p>
           </div>
         </div>
       </div>
     </section>
   </main>
+  </div>
+
+  <dialog id="roleSelectDialog" class="eval-dialog role-dialog" closedby="any" aria-labelledby="roleDialogTitle">
+    <div class="dialog-header">
+      <h1 id="roleDialogTitle">Choose Login Persona</h1>
+      <form method="dialog">
+        <button type="submit" class="btn btn-secondary btn-sm">Close</button>
+      </form>
+    </div>
+    <div class="dialog-body">
+      <p class="section-desc">Select whether you want to log in as an End User or Admin.</p>
+      <div class="role-choice-grid">
+        <button type="button" id="chooseUserRoleBtn" class="btn btn-primary" autofocus>End User (Chat + Upload · Fine-Tuned + RAG)</button>
+        <button type="button" id="chooseAdminRoleBtn" class="btn btn-secondary">Admin (Full Deliverables Workbench)</button>
+      </div>
+      <div id="dialogDummyCreds" class="dummy-creds-box" hidden>
+        <div class="dummy-creds-header">
+          <strong>Demo Credentials Revealed</strong>
+        </div>
+        <div class="dummy-creds-grid">
+          <div class="dummy-cred-item">
+            <div><strong>End User ID:</strong> <code>user@finkyc.in</code></div>
+            <div><strong>Password:</strong> <code>User@1234</code></div>
+          </div>
+          <div class="dummy-cred-item">
+            <div><strong>Admin ID:</strong> <code>admin@finkyc.in</code></div>
+            <div><strong>Password:</strong> <code>Admin@1234</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="realtimeEvalDialog" class="eval-dialog" closedby="any" aria-labelledby="realtimeDialogTitle">
+    <div class="dialog-header">
+      <h1 id="realtimeDialogTitle">Realtime Prompt Evaluation</h1>
+      <form method="dialog">
+        <button type="submit" class="btn btn-secondary btn-sm" autofocus>Close</button>
+      </form>
+    </div>
+    <div id="realtimeDialogBody" class="dialog-body"></div>
+  </dialog>
+
+  <dialog id="setupResultDialog" class="eval-dialog" closedby="any" aria-labelledby="setupDialogTitle">
+    <div class="dialog-header">
+      <h1 id="setupDialogTitle">Setup Overall Results</h1>
+      <form method="dialog">
+        <button type="submit" class="btn btn-secondary btn-sm" autofocus>Close</button>
+      </form>
+    </div>
+    <div id="setupDialogBody" class="dialog-body"></div>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

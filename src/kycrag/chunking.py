@@ -10,20 +10,17 @@ CLAUSE_START_RE = re.compile(r"^\((\d{1,2}|[ivxl]{1,6}|[a-z])\)\s")
 XREF_RE = re.compile(
     r"\bparagraphs?\s+((?:\d{1,3}(?:\s*\(\w{1,5}\))*\s*(?:,|and|or|to|&)?\s*)+)", re.I
 )
-# ‘Officially Valid Document (OVD)’   or   ‘Central KYC Records Registry’ (CKYCR)
 DEF_INSIDE_RE = re.compile(r"[‘'\"]([^’'\"]{3,120}?)\s*\(([A-Z][A-Za-z\-]{1,10})\)[’'\"]")
 DEF_OUTSIDE_RE = re.compile(r"[‘'\"]([^’'\"]{3,120})[’'\"]\s*\(([A-Z][A-Za-z\-]{1,10})\)")
-
 
 def extract_xrefs(text: str, own_ref: str) -> list[str]:
     refs: list[str] = []
     for m in XREF_RE.finditer(text):
-        span = re.sub(r"\(\w{1,5}\)", " ", m.group(1))     # drop clause numbers like (5)
+        span = re.sub(r"\(\w{1,5}\)", " ", m.group(1))
         for num in re.findall(r"\d{1,3}", span):
             if num != own_ref and num not in refs:
                 refs.append(num)
     return refs
-
 
 def extract_glossary(text: str) -> dict[str, str]:
     out: dict[str, str] = {}
@@ -31,7 +28,6 @@ def extract_glossary(text: str) -> dict[str, str]:
         for term, acr in rx.findall(text):
             out.setdefault(acr.strip(), term.strip())
     return out
-
 
 def _split_long(lines: list[str], max_chars: int) -> list[list[str]]:
     """Split at clause boundaries so each part stays under max_chars."""
@@ -44,7 +40,6 @@ def _split_long(lines: list[str], max_chars: int) -> list[list[str]]:
         parts[-1].append(ln)
         size += len(ln) + 1
     return [p for p in parts if p]
-
 
 def paragraph_chunks(paras: list[ParsedPara], doc: DocMeta, max_chars: int) -> list[Chunk]:
     chunks: list[Chunk] = []
@@ -69,7 +64,6 @@ def paragraph_chunks(paras: list[ParsedPara], doc: DocMeta, max_chars: int) -> l
     _resolve_xrefs(chunks)
     return chunks
 
-
 def _resolve_xrefs(chunks: list[Chunk]) -> None:
     """Turn paragraph numbers into chunk ids within the same document."""
     by_para: dict[tuple[str, str], list[str]] = {}
@@ -80,7 +74,6 @@ def _resolve_xrefs(chunks: list[Chunk]) -> None:
         for ref in c.cross_refs:
             ids.extend(by_para.get((c.doc_id, ref), []))
         c.cross_refs = [i for i in ids if not i.startswith(f"{c.doc_id}:p{c.para_ref}")]
-
 
 def naive_chunks(paras: list[ParsedPara], doc: DocMeta, size: int) -> list[Chunk]:
     """Baseline: concatenate the whole document and cut every `size` characters.

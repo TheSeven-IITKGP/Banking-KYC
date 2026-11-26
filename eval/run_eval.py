@@ -22,16 +22,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kycrag.generate import format_context  # noqa: E402
-from kycrag.guard import understand  # noqa: E402
-from kycrag.retrieve import ABLATIONS, Retriever, order_for_context  # noqa: E402
+from kycrag.generate import format_context
+from kycrag.guard import understand
+from kycrag.retrieve import ABLATIONS, Retriever, order_for_context
 
 JUDGE_PROMPT = """You grade a RAG answer about bank KYC rules.
 Given CONTEXT, QUESTION, GOLD ANSWER and SYSTEM ANSWER, return JSON:
 {"faithful": 1 if every factual claim in SYSTEM ANSWER is supported by CONTEXT else 0,
  "correct": 1 if SYSTEM ANSWER matches GOLD ANSWER in substance, 0.5 if partly, 0 if wrong or missing,
  "reason": "<one sentence>"}"""
-
 
 def load_questions(path: Path) -> list[dict]:
     with path.open(newline="", encoding="utf-8") as f:
@@ -40,18 +39,15 @@ def load_questions(path: Path) -> list[dict]:
         r["gold"] = {tuple(g.split(":", 1)) for g in r.get("gold_paras", "").split(";") if ":" in g}
     return rows
 
-
 def paras_of(hit_chunk) -> set[tuple[str, str]]:
     """(doc, para) pairs a chunk covers. Naive windows can cover several paragraphs."""
     return {(hit_chunk.doc_id, p) for p in hit_chunk.para_ref.split(",") if p}
-
 
 def recall(gold: set, chunks) -> float | None:
     if not gold:
         return None
     covered = set().union(*(paras_of(c) for c in chunks)) if chunks else set()
     return len(gold & covered) / len(gold)
-
 
 def run(args) -> None:
     questions = load_questions(Path(args.questions))
@@ -86,11 +82,11 @@ def run(args) -> None:
             row["recall_at_5"] = recall(q["gold"], retrieved)
             row["context_recall"] = recall(q["gold"], [h.chunk for h in hits])
             row["refused_early"] = info.intent != "in_scope"
-            row["refusal_correct"] = int(row["refused_early"] == (q["expect"] == "refuse"))  # overwritten below if generating
+            row["refusal_correct"] = int(row["refused_early"] == (q["expect"] == "refuse"))
             if assistant:
                 try:
                     res = assistant.ask(q["question"], cfg, log=False)
-                except Exception as e:      # API error (rate limit, timeout, ...): skip, keep the run alive
+                except Exception as e:
                     row["status"] = "error"
                     row["judge_reason"] = f"generation error: {e}"
                     rows.append(row)
@@ -108,15 +104,13 @@ def run(args) -> None:
                     try:
                         g = json.loads(judge.complete(JUDGE_PROMPT, user))
                         row["faithful"], row["correct"], row["judge_reason"] = g.get("faithful"), g.get("correct"), g.get("reason", "")
-                    except Exception as e:      # keep going; note the failure
+                    except Exception as e:
                         row["judge_reason"] = f"judge error: {e}"
             rows.append(row)
         print(f"done {cfg.name}")
-        write_outputs(run_dir, rows)   # write after every config so a later crash doesn't lose earlier progress
-
+        write_outputs(run_dir, rows)
 
 METRICS = ["recall_at_5", "context_recall", "citation_precision", "faithful", "correct", "refusal_correct"]
-
 
 def write_outputs(run_dir: Path, rows: list[dict]) -> None:
     keys = sorted({k for r in rows for k in r}, key=lambda k: (k not in ("config", "id", "group"), k))
@@ -150,7 +144,6 @@ def write_outputs(run_dir: Path, rows: list[dict]) -> None:
     print("\n".join(md))
     print(f"\nresults in {run_dir}")
 
-
 def agreement(path: str) -> None:
     with open(path, newline="", encoding="utf-8") as f:
         rows = [r for r in csv.DictReader(f) if r["human_correct"] != "" and r["correct"] != ""]
@@ -158,7 +151,6 @@ def agreement(path: str) -> None:
         raise SystemExit("Fill the human_correct column first (0, 0.5 or 1).")
     same = sum(float(r["correct"]) == float(r["human_correct"]) for r in rows)
     print(f"judge-human exact agreement: {same}/{len(rows)} = {same / len(rows):.0%}")
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

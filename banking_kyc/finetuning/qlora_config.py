@@ -8,14 +8,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
-
 @dataclass
 class QLoRAConfig:
     """Hyperparameter specification for a single fine-tuning run."""
 
     experiment_name: str
     base_model: str = "meta-llama/Meta-Llama-3-8B-Instruct"
-    quantization_type: str = "nf4"  # 4-bit NormalFloat
+    quantization_type: str = "nf4"
     use_double_quant: bool = True
     compute_dtype: str = "bfloat16"
     lora_r: int = 16
@@ -45,7 +44,6 @@ class QLoRAConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-
 
 class QLoRAExperimentConfigs:
     """Production matrix containing 2 configurations and 2 ablation variations."""

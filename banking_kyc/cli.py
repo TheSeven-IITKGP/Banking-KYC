@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -18,10 +19,8 @@ from banking_kyc.finetuning.train import run_training_pipeline
 from banking_kyc.providers.registry import registry
 from banking_kyc.workflow.graph import KYCWorkflowState, LangGraphKYCWorkflow
 
-
 def cmd_serve(args):
     run_server(host=args.host, port=args.port)
-
 
 def cmd_prepare_data(args):
     raw_path = Path(args.input)
@@ -33,7 +32,6 @@ def cmd_prepare_data(args):
     print("✅ Successfully generated instruction-tuning dataset splits:")
     for split, count in summary.items():
         print(f"   • {split}: {count} records (Llama-3 ChatML & Alpaca formats)")
-
 
 def cmd_evaluate(args):
     print("📊 Evaluating Small-Model KYC Extraction Performance across benchmark matrix...")
@@ -47,19 +45,16 @@ def cmd_evaluate(args):
         print(f"  • Hallucination Rate: {metrics['hallucination_rate_pct']}%")
         print(f"  • Latency: {metrics['mean_latency_ms']} ms")
 
-
 def cmd_train(args):
     print(f"🚀 Initializing QLoRA fine-tuning training job for config: {args.config}")
     res = run_training_pipeline(config_name=args.config, dry_run=args.dry_run)
     print(json.dumps(res, indent=2))
-
 
 def cmd_list_providers(args):
     print("🔌 Available Inference Providers:")
     for p in registry.list_providers():
         active_mark = " (ACTIVE)" if p["is_active"] else ""
         print(f"  • {p['name']}{active_mark}: Model={p['model_name']}, BaseURL={p['base_url']}")
-
 
 def cmd_rag(args):
     import subprocess
@@ -86,38 +81,31 @@ def cmd_rag(args):
     else:
         print("Use --ask 'query', --serve, --build, or --eval with the 'rag' command.")
 
-
 def main():
     parser = argparse.ArgumentParser(description="FinKYC Production Platform CLI - Developed by Chandan Bauri")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Serve
     p_serve = subparsers.add_parser("serve", help="Launch Production API & Web UI Server")
     p_serve.add_argument("--host", default="0.0.0.0", help="Host address")
-    p_serve.add_argument("--port", type=int, default=8080, help="Port")
+    p_serve.add_argument("--port", type=int, default=int(os.getenv("PORT", "8080")), help="Port")
     p_serve.set_defaults(func=cmd_serve)
 
-    # Prepare Data
     p_prep = subparsers.add_parser("prepare-data", help="Prepare train/val/test instruction splits")
     p_prep.add_argument("--input", default="synthetic_indian_kyc_ocr_finetune_2000.jsonl", help="Input JSONL path")
     p_prep.add_argument("--output-dir", default="data/processed", help="Output directory")
     p_prep.set_defaults(func=cmd_prepare_data)
 
-    # Evaluate
     p_eval = subparsers.add_parser("evaluate", help="Run benchmark evaluation across models and ablations")
     p_eval.set_defaults(func=cmd_evaluate)
 
-    # Train
     p_train = subparsers.add_parser("train", help="Run QLoRA fine-tuning pipeline")
     p_train.add_argument("--config", default="config_1_balanced", choices=list(QLoRAExperimentConfigs.list_all_configs().keys()))
     p_train.add_argument("--dry-run", action="store_true", default=True)
     p_train.set_defaults(func=cmd_train)
 
-    # List Providers
     p_prov = subparsers.add_parser("list-providers", help="List configured providers")
     p_prov.set_defaults(func=cmd_list_providers)
 
-    # RAG Subsystem
     p_rag = subparsers.add_parser("rag", help="RBI KYC Directions RAG commands (ask, build, serve, eval)")
     p_rag.add_argument("--ask", help="Ask regulatory question")
     p_rag.add_argument("--serve", action="store_true", help="Launch Streamlit RAG explorer")
@@ -130,7 +118,6 @@ def main():
         args.func(args)
     else:
         parser.print_help()
-
 
 if __name__ == "__main__":
     main()

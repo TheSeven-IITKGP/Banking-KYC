@@ -1,5 +1,4 @@
 @echo off
-REM One-step setup for Windows. Run from inside the kyc-rag folder:  setup.bat
 python -m venv .venv || goto :error
 call .venv\Scripts\activate.bat
 pip install -r requirements.txt || goto :error
