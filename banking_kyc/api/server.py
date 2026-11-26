@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import secrets
 import sys
 import time
@@ -385,6 +386,67 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
 
         return extracted_text, profile_obj, upload_note
 
+    @staticmethod
+    def _friendly_doc_label(doc_type: str) -> str:
+        labels = {
+            "AADHAAR_CARD": "Aadhaar Card",
+            "PAN_CARD": "PAN Card",
+            "VOTER_ID": "Voter ID",
+            "DRIVING_LICENCE": "Driving Licence",
+            "PASSPORT": "Passport",
+        }
+        return labels.get(str(doc_type or "").upper(), "Identity Document")
+
+    @staticmethod
+    def _format_rag_points(citations: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        doc_names = {
+            "MD-KYC-2016": "RBI Master Direction on KYC",
+            "CB-KYC-2025": "Internal KYC Operations Policy",
+            "RBI-KYC-FAQ": "RBI KYC FAQ",
+            "SIB-KYC": "SIB KYC Guidelines",
+        }
+        points: List[Dict[str, str]] = []
+        for c in citations:
+            raw_text = re.sub(r"\s+", " ", str(c.get("text") or "")).strip()
+            raw_text = re.sub(r"(?<=\w)-\s+(?=\w)", "-", raw_text)
+            if not raw_text:
+                continue
+            doc_title = doc_names.get(str(c.get("doc_id") or ""), str(c.get("doc_id") or "RBI Guidance"))
+            para_ref = str(c.get("para_ref") or "").strip()
+            source_ref = f"{doc_title} ({para_ref})" if para_ref else doc_title
+            m_faq = re.match(r"^(Q\.?\s*\d+\.?\s*.+?)\s*Ans\.?\s*(.+)$", raw_text, re.IGNORECASE)
+            if m_faq:
+                title = m_faq.group(1).strip()
+                body = m_faq.group(2).strip()
+            else:
+                heading = str(c.get("heading_path") or "").split(" > ")[-1].strip()
+                title = heading or doc_title
+                body = raw_text
+            points.append({"title": title, "body": body, "source": source_ref})
+        return points
+
+    @classmethod
+    def _build_doc_details(cls, sanitized: Dict[str, Any] | None) -> List[Dict[str, str]]:
+        if not isinstance(sanitized, dict):
+            return []
+        raw_type = sanitized.get("extracted_document_type") or sanitized.get("document_type")
+        raw_num = sanitized.get("extracted_document_number") or sanitized.get("document_number")
+        raw_name = sanitized.get("extracted_full_name") or sanitized.get("full_name")
+        raw_dob = sanitized.get("extracted_dob") or sanitized.get("date_of_birth")
+        raw_pin = sanitized.get("pincode")
+        rows: List[Dict[str, str]] = []
+        if raw_type and str(raw_type) != "UNKNOWN":
+            rows.append({"label": "Document Type", "value": cls._friendly_doc_label(str(raw_type))})
+        if raw_num:
+            rows.append({"label": "ID Number (Masked)", "value": str(raw_num)})
+        if raw_name:
+            rows.append({"label": "Full Name", "value": str(raw_name)})
+        if raw_dob:
+            rows.append({"label": "Date of Birth", "value": str(raw_dob)})
+        if raw_pin:
+            rows.append({"label": "Pincode", "value": str(raw_pin)})
+        return rows
+
     @classmethod
     def _run_end_user_chat(
         cls,
@@ -409,13 +471,18 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
         combined_probe = f"{clean_query}\n{doc_text}".strip()
         sec = cls.workflow.security_layer.inspect_inbound(combined_probe)
         if not sec.is_safe:
+            msg = "This request cannot be processed because unsafe instructions were detected. Please ask a standard KYC question or upload a clear ID document."
             return {
                 "setup": setup_id,
                 "setup_label": meta["label"],
                 "model_used": model_used,
                 "decision": "REJECTED_SECURITY_VIOLATION",
+                "status_label": "Request Blocked",
                 "status_tone": "gray",
-                "answer": f"Security Alert ({sec.threat_type}): Request blocked by FinKYC inbound prompt defense.",
+                "summary": msg,
+                "answer": msg,
+                "document_details": [],
+                "key_points": [],
                 "sanitized_view": None,
                 "rag_citations": [],
                 "file_name": file_name or None,
@@ -432,22 +499,43 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
                 quality_flags=ImageQualityFlags(blur_detected=False, glare_detected=False, simulated_ocr_confidence=0.95),
                 record_id=f"CHAT-{random.randint(1000, 9999)}",
             )
-            tone = "green" if "APPROVED" in str(res["decision"]) else ("red" if "QUALITY" in str(res["decision"]) else "orange")
+            dec = str(res["decision"])
+            tone = "green" if "APPROVED" in dec else ("red" if "QUALITY" in dec else "orange")
+            status_map = {
+                "AUTO_APPROVED": "Document Verified",
+                "APPROVED_WITH_FUZZY_MATCH": "Verified (Minor Noise)",
+                "MANUAL_REVIEW_OR_REJECT": "Needs Manual Review",
+                "REJECTED_POOR_QUALITY": "Unclear Image",
+            }
+            doc_details = cls._build_doc_details(res.get("sanitized_view"))
+            cites = res.get("rag_citations", [])
+            key_points = cls._format_rag_points(cites)
+            friendly_doc = cls._friendly_doc_label(str((res.get("extracted_data") or {}).get("document_type") or ""))
+            if "APPROVED" in dec:
+                summary = f"Your {friendly_doc} matched the submitted details. Sensitive identity fields remain masked for your privacy."
+            elif "QUALITY" in dec:
+                summary = "The uploaded document was too blurry or unreadable to verify. Please upload a clearer photo."
+            else:
+                summary = f"We checked your {friendly_doc}, but some details did not match the submitted profile and require manual review."
             return {
                 "setup": setup_id,
                 "setup_label": meta["label"],
                 "model_used": res["model_used"],
-                "decision": res["decision"],
+                "decision": dec,
+                "status_label": status_map.get(dec, "Checked"),
                 "status_tone": tone,
-                "answer": res["narrative"],
+                "summary": summary,
+                "answer": summary,
+                "document_details": doc_details,
+                "key_points": key_points,
                 "sanitized_view": res.get("sanitized_view"),
-                "rag_citations": res.get("rag_citations", []),
+                "rag_citations": cites,
                 "file_name": file_name or None,
                 "processing_time_ms": res["processing_time_ms"],
             }
 
         if doc_text:
-            effective_q = clean_query or "Verify uploaded KYC document and cite applicable RBI Master Direction requirements."
+            effective_q = clean_query or "officially valid document aadhaar pan kyc verification rules"
             quality_ok, _, quality_msg = cls.workflow.quality_analyzer.evaluate_quality(
                 raw_text=doc_text,
                 simulated_confidence=0.95,
@@ -456,13 +544,18 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
                 orientation_angle=0,
             )
             if not quality_ok:
+                msg = f"The uploaded image did not contain enough readable text ({quality_msg}). Please upload a sharper, well-lit photo."
                 return {
                     "setup": setup_id,
                     "setup_label": meta["label"],
                     "model_used": model_used,
                     "decision": "REJECTED_POOR_QUALITY",
+                    "status_label": "Unclear Image",
                     "status_tone": "red",
-                    "answer": f"Document upload rejected by optical quality check: {quality_msg}",
+                    "summary": msg,
+                    "answer": msg,
+                    "document_details": [],
+                    "key_points": [],
                     "sanitized_view": None,
                     "rag_citations": [],
                     "file_name": file_name or None,
@@ -481,25 +574,34 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
             }
             sanitized = cls.workflow.security_layer.sanitize_outbound_dict(raw_summary)
             citations = cls._retrieve_rag_citations(effective_q, ext_type, k=3)
-            masked_id = sanitized.get("document_number") or "N/A"
-            cite_names = ", ".join(f"{c['doc_id']} para {c['para_ref']}" for c in citations) or "RBI Master Direction - KYC"
+            doc_details = cls._build_doc_details(sanitized)
+            key_points = cls._format_rag_points(citations)
+            friendly_doc = cls._friendly_doc_label(ext_type)
             decision = "DOCUMENT_VERIFIED_WITH_RAG" if extracted.document_number else "DOCUMENT_PARSED_WITH_RAG"
-            answer = (
-                f"Extracted {ext_type} (masked ID: {masked_id}) for {sanitized.get('full_name') or 'Applicant'} "
-                f"(DOB: {sanitized.get('date_of_birth') or 'N/A'}) via Fine-Tuned + RAG ({model_used}). "
-                f"PII redacted under RBI KYC privacy guidelines. Grounded against {len(citations)} RBI citations ({cite_names})."
-            )
-            if clean_query:
-                answer = f"Query: {PIIRedactor.redact_text(clean_query)}\n\n{answer}"
-            elif upload_note:
-                answer = f"{upload_note}\n\n{answer}"
+            if extracted.document_number:
+                summary = (
+                    f"Read your {friendly_doc} successfully. Key identity numbers are masked below for privacy, "
+                    "along with relevant RBI KYC guidelines."
+                )
+            else:
+                summary = (
+                    f"Detected your uploaded document ({friendly_doc}), but the ID number was unclear. "
+                    "Please upload a clearer photo if any field is missing."
+                )
+            full_answer = summary
+            if key_points:
+                full_answer += "\n\n" + "\n\n".join(f"{p['title']}: {p['body']}" for p in key_points)
             return {
                 "setup": setup_id,
                 "setup_label": meta["label"],
                 "model_used": model_used,
                 "decision": decision,
+                "status_label": "Document Checked" if extracted.document_number else "Partial Read",
                 "status_tone": "green" if extracted.document_number else "orange",
-                "answer": answer,
+                "summary": summary,
+                "answer": full_answer,
+                "document_details": doc_details,
+                "key_points": key_points,
                 "sanitized_view": sanitized,
                 "rag_citations": citations,
                 "file_name": file_name or None,
@@ -508,27 +610,37 @@ class KYCAPIRequestHandler(SimpleHTTPRequestHandler):
 
         rag_query = clean_query or "officially valid document kyc verification"
         citations = cls._retrieve_rag_citations(rag_query, "", k=3)
-        if not citations:
-            answer = upload_note or "No matching RBI KYC paragraphs found. Upload a KYC document or refine your RBI KYC query."
+        key_points = cls._format_rag_points(citations)
+        if not key_points:
+            summary = upload_note or "No matching RBI KYC rules were found for your question. Try rephrasing or uploading a KYC document."
+            status_label = "No Match Found"
             status_tone = "gray"
             decision = "RAG_NO_MATCH"
+            full_answer = summary
+        elif upload_note and file_name:
+            summary = f"{upload_note} Here is the related RBI KYC guidance for your reference."
+            status_label = "Image Unreadable — Guidance Attached"
+            status_tone = "orange"
+            decision = "DOCUMENT_OCR_INCOMPLETE"
+            full_answer = summary + "\n\n" + "\n\n".join(f"{p['title']}: {p['body']}" for p in key_points)
         else:
-            snippets = [f"[{c['doc_id']} para {c['para_ref']}] {c['text'][:240].strip()}" for c in citations[:2]]
-            prefix = f"{upload_note}\n\n" if upload_note else ""
-            answer = (
-                f"{prefix}Grounded RBI KYC answer via Fine-Tuned + RAG ({model_used}): "
-                + " | ".join(snippets)
-            )
+            summary = "Here is the official RBI KYC guidance matching your question:"
+            status_label = "RBI KYC Guidance"
             status_tone = "green"
             decision = "ANSWERED_WITH_RAG"
+            full_answer = "\n\n".join(f"{p['title']}\n{p['body']}" for p in key_points)
 
         return {
             "setup": setup_id,
             "setup_label": meta["label"],
             "model_used": model_used,
             "decision": decision,
+            "status_label": status_label,
             "status_tone": status_tone,
-            "answer": answer,
+            "summary": summary,
+            "answer": full_answer,
+            "document_details": [],
+            "key_points": key_points,
             "sanitized_view": None,
             "rag_citations": citations,
             "file_name": file_name or None,

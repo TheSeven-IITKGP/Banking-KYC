@@ -61,7 +61,7 @@ function applyAuthenticatedSession(session) {
   document.getElementById("sessionRoleLabel").innerText = session.display_name || session.role;
   document.getElementById("headerSubtitle").innerText = isAdmin
     ? "Admin Deliverables Workbench • 4-Setup Evaluation • QLoRA Job-178 • RBI Hybrid RAG"
-    : "End User KYC Chat • Fine-Tuned Model + RAG Only • Dual-Stage PII Protection";
+    : "KYC Verification & RBI Guidance Assistant";
 
   const roleDialog = document.getElementById("roleSelectDialog");
   if (roleDialog && roleDialog.open) roleDialog.close();
@@ -346,23 +346,57 @@ function appendChatAssistantBubble(data) {
   const wrap = document.createElement("div");
   wrap.className = "chat-msg assistant";
   const toneClass = `status-${escapeHtml(data.status_tone || "gray")}`;
-  const cites = (data.rag_citations || []).map(c => `
-    <details class="source">
-      <summary>${escapeHtml(c.doc_id)}, para ${escapeHtml(c.para_ref)} (BM25 ${escapeHtml(c.score)})</summary>
-      <div class="heading">${escapeHtml(c.heading_path)}</div>
-      <pre>${escapeHtml(c.text)}</pre>
-    </details>
-  `).join("");
-  const redactedHtml = data.sanitized_view
-    ? `<details class="source"><summary>Sanitized Customer Output (PII Redacted)</summary><pre>${escapeHtml(JSON.stringify(data.sanitized_view, null, 2))}</pre></details>`
+  const statusLabel = data.status_label || data.decision || "Ready";
+  const summaryText = data.summary || data.answer || "";
+
+  const detailsList = Array.isArray(data.document_details) ? data.document_details : [];
+  const detailsHtml = detailsList.length
+    ? `<div class="chat-section-label">Extracted Document Summary (Masked)</div>
+       <dl class="chat-kv-grid">
+         ${detailsList.map(item => `
+           <div class="chat-kv-item">
+             <dt>${escapeHtml(item.label)}</dt>
+             <dd>${escapeHtml(item.value)}</dd>
+           </div>
+         `).join("")}
+       </dl>`
+    : "";
+
+  const keyPoints = Array.isArray(data.key_points) ? data.key_points : [];
+  const pointsHtml = keyPoints.length
+    ? `<div class="chat-section-label">Key RBI KYC Guidance</div>
+       <div class="chat-point-list">
+         ${keyPoints.map(pt => `
+           <div class="chat-point-card">
+             <div class="chat-point-title">${escapeHtml(pt.title)}</div>
+             <div class="chat-point-body">${escapeHtml(pt.body)}</div>
+             <div class="chat-point-source">${escapeHtml(pt.source)}</div>
+           </div>
+         `).join("")}
+       </div>`
+    : "";
+
+  const citations = Array.isArray(data.rag_citations) ? data.rag_citations : [];
+  const sourcesHtml = citations.length
+    ? `<details class="source">
+         <summary>View Official RBI Sources (${citations.length})</summary>
+         ${citations.map(c => `
+           <div class="chat-source-item">
+             <div class="heading">${escapeHtml(c.heading_path || c.doc_id)} • Ref: ${escapeHtml(c.para_ref)}</div>
+             <pre>${escapeHtml(c.text)}</pre>
+           </div>
+         `).join("")}
+       </details>`
     : "";
 
   wrap.innerHTML = `
-    <div class="chat-msg-meta">${escapeHtml(data.setup_label || "Fine-Tuned Model + RAG")} • ${escapeHtml(data.model_used || "")} • ${escapeHtml(data.processing_time_ms || 0)} ms</div>
-    <span class="status ${toneClass}">${escapeHtml(data.decision || "READY")}</span>
-    <div class="chat-msg-body">${escapeHtml(data.answer || "")}</div>
-    ${redactedHtml}
-    ${cites}
+    <div class="chat-msg-header">
+      <span class="status ${toneClass}">${escapeHtml(statusLabel)}</span>
+    </div>
+    <div class="chat-summary">${escapeHtml(summaryText)}</div>
+    ${detailsHtml}
+    ${pointsHtml}
+    ${sourcesHtml}
   `;
   box.appendChild(wrap);
   box.scrollTop = box.scrollHeight;

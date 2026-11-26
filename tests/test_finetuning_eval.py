@@ -312,11 +312,18 @@ class TestFineTuningAndEval(unittest.TestCase):
         self.assertIn("qwen2.5-7b-qlora", chat_res["model_used"])
         self.assertGreater(len(chat_res["rag_citations"]), 0)
         self.assertEqual(chat_res["sanitized_view"]["document_number"], "XXXX-XXXX-4822")
+        self.assertEqual(chat_res["status_label"], "Document Checked")
+        self.assertGreater(len(chat_res["document_details"]), 0)
 
-        rag_code, rag_res = call_post("/api/chat-kyc", {"query": "officially valid document customer due diligence"})
+        rag_code, rag_res = call_post("/api/chat-kyc", {"query": "What is a KYC Identifier and what documents are required for opening a bank account?"})
         self.assertEqual(rag_code, 200)
         self.assertEqual(rag_res["setup"], "fine_tuned_rag")
         self.assertGreater(len(rag_res["rag_citations"]), 0)
+        self.assertGreater(len(rag_res["key_points"]), 0)
+        longest_src = max(len(c["text"]) for c in rag_res["rag_citations"])
+        combined_kp = " ".join(p["body"] for p in rag_res["key_points"])
+        self.assertGreaterEqual(len(combined_kp), min(longest_src - 60, 260))
+        self.assertNotIn("equiva |", rag_res["answer"])
 
     def test_image_ocr_upload_and_aadhaar_parsing(self):
         import base64
