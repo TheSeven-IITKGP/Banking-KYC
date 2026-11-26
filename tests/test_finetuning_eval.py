@@ -157,6 +157,8 @@ class TestFineTuningAndEval(unittest.TestCase):
             "setupResultDialog",
             "modelCardSection",
             "benchSection",
+            "experimentsSection",
+            "tabExpBtn",
             "adminSection",
         ):
             self.assertIn(ui_id, web_html)
@@ -376,6 +378,83 @@ class TestFineTuningAndEval(unittest.TestCase):
             self.assertEqual(res["sanitized_view"]["document_number"], "XXXX-XXXX-9012")
             self.assertGreater(len(res["rag_citations"]), 0)
             self.assertNotIn("FAQ 17", res["answer"])
+
+    def test_experiment_tracking_github_pages_and_api(self):
+        import io as sys_io
+        import json
+        from banking_kyc.api.server import KYCAPIRequestHandler
+
+        root = Path(__file__).resolve().parent.parent
+        docs_dir = root / "docs"
+        for fname in (".nojekyll", "index.html", "styles.css", "app.js", "experiments.json"):
+            self.assertTrue((docs_dir / fname).is_file(), f"Missing GitHub Pages asset docs/{fname}")
+
+        pages_html = (docs_dir / "index.html").read_text(encoding="utf-8")
+        pages_css = (docs_dir / "styles.css").read_text(encoding="utf-8")
+        pages_js = (docs_dir / "app.js").read_text(encoding="utf-8")
+        snapshot = json.loads((docs_dir / "experiments.json").read_text(encoding="utf-8"))
+
+        self.assertGreaterEqual(snapshot["summary"]["total_runs"], 9)
+        run_ids = {r["run_id"] for r in snapshot["runs"]}
+        self.assertIn("JOB-178-QLORA", run_ids)
+        self.assertIn("SETUP-FT-RAG", run_ids)
+        self.assertIn('role="region"', pages_html)
+        self.assertIn("<progress", pages_js)
+        self.assertIn("experiments.json", pages_js)
+        self.assertNotIn("1.5B", pages_html)
+        self.assertNotIn("Lead Engineer", pages_html)
+
+        for legacy in ("#1e3a8a", "#2563eb", "#0f172a", "#eff6ff"):
+            self.assertNotIn(legacy, pages_css.lower())
+        for asset in (pages_html, pages_js):
+            for ch in asset:
+                self.assertFalse(0x1F300 <= ord(ch) <= 0x1FAFF or ord(ch) == 0xFE0F)
+
+        class FakeSocket:
+            def __init__(self, raw_request: bytes):
+                self.rfile = sys_io.BytesIO(raw_request)
+                self.wfile = sys_io.BytesIO()
+
+            def makefile(self, mode, *args, **kwargs):
+                return self.rfile if "r" in mode else self.wfile
+
+            def sendall(self, data: bytes):
+                self.wfile.write(data)
+
+        def call_http(method: str, path: str, payload: dict | None = None):
+            body = json.dumps(payload).encode("utf-8") if payload is not None else b""
+            headers = f"{method} {path} HTTP/1.1\r\nHost: localhost\r\n"
+            if payload is not None:
+                headers += f"Content-Type: application/json\r\nContent-Length: {len(body)}\r\n"
+            sock = FakeSocket((headers + "\r\n").encode("utf-8") + body)
+            KYCAPIRequestHandler(sock, ("127.0.0.1", 0), None)
+            raw_resp = sock.wfile.getvalue().decode("utf-8")
+            head, resp_body = raw_resp.split("\r\n\r\n", 1)
+            return int(head.splitlines()[0].split()[1]), head, resp_body
+
+        prev_runs = list(KYCAPIRequestHandler._experiment_runs)
+        try:
+            KYCAPIRequestHandler._experiment_runs.clear()
+            c_get, _, b_get = call_http("GET", "/api/experiments")
+            self.assertEqual(c_get, 200)
+            exp_data = json.loads(b_get)
+            self.assertGreaterEqual(exp_data["summary"]["total_runs"], 9)
+
+            c_run, _, b_run = call_http("POST", "/api/experiments/run", {"config_name": "config_1_balanced", "sample_limit": 25})
+            self.assertEqual(c_run, 200)
+            run_out = json.loads(b_run)
+            self.assertTrue(run_out["run"]["run_id"].startswith("LIVE-"))
+            self.assertGreater(run_out["run"]["doc_id_acc_pct"], 70.0)
+
+            c_redir, h_redir, _ = call_http("GET", "/experiments")
+            self.assertEqual(c_redir, 302)
+            self.assertIn("Location: /experiments/", h_redir)
+
+            c_page, _, b_page = call_http("GET", "/experiments/")
+            self.assertEqual(c_page, 200)
+            self.assertIn("FinKYC Experiment Tracking Dashboard", b_page)
+        finally:
+            KYCAPIRequestHandler._experiment_runs[:] = prev_runs
 
 
 if __name__ == "__main__":

@@ -91,6 +91,10 @@ evaluate: $(VENV)/bin/python3
 	@echo "📈 Running benchmark evaluation matrix inside $(VENV)..."
 	@$(PYTHON) run.py evaluate
 
+export-experiments: $(VENV)/bin/python3
+	@echo "📊 Exporting GitHub Pages experiment tracking snapshot to docs/experiments.json..."
+	@$(PYTHON) run.py export-experiments --output docs/experiments.json
+
 serve: $(VENV)/bin/python3
 	@echo "🚀 Launching FinKYC Web UI and REST API on port $(PORT)..."
 	@echo "👉 Open your browser at http://localhost:$(PORT)"

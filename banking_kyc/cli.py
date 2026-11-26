@@ -45,6 +45,12 @@ def cmd_evaluate(args):
         print(f"  • Hallucination Rate: {metrics['hallucination_rate_pct']}%")
         print(f"  • Latency: {metrics['mean_latency_ms']} ms")
 
+
+def cmd_export_experiments(args):
+    out_path = Path(args.output)
+    payload = KYCEvaluator.export_experiments_snapshot(out_path)
+    print(f"Exported {payload['summary']['total_runs']} experiment runs to {out_path}")
+
 def cmd_train(args):
     print(f"🚀 Initializing QLoRA fine-tuning training job for config: {args.config}")
     res = run_training_pipeline(config_name=args.config, dry_run=args.dry_run)
@@ -97,6 +103,10 @@ def main():
 
     p_eval = subparsers.add_parser("evaluate", help="Run benchmark evaluation across models and ablations")
     p_eval.set_defaults(func=cmd_evaluate)
+
+    p_exp = subparsers.add_parser("export-experiments", help="Export static experiment tracking snapshot for GitHub Pages")
+    p_exp.add_argument("--output", default="docs/experiments.json", help="Output JSON path")
+    p_exp.set_defaults(func=cmd_export_experiments)
 
     p_train = subparsers.add_parser("train", help="Run QLoRA fine-tuning pipeline")
     p_train.add_argument("--config", default="config_1_balanced", choices=list(QLoRAExperimentConfigs.list_all_configs().keys()))

@@ -427,6 +427,7 @@ function switchTab(tabName) {
   const tabs = [
     { name: "user", btn: "tabUserBtn", sec: "userSection" },
     { name: "bench", btn: "tabBenchBtn", sec: "benchSection" },
+    { name: "experiments", btn: "tabExpBtn", sec: "experimentsSection" },
     { name: "modelcard", btn: "tabModelCardBtn", sec: "modelCardSection" },
     { name: "admin", btn: "tabAdminBtn", sec: "adminSection" },
   ];
@@ -436,6 +437,11 @@ function switchTab(tabName) {
   }
   if (tabName === "admin") {
     loadAuditLogs();
+  } else if (tabName === "experiments") {
+    const frame = document.getElementById("expDashboardFrame");
+    if (frame?.contentWindow?.loadExperiments) {
+      frame.contentWindow.loadExperiments();
+    }
   }
 }
 

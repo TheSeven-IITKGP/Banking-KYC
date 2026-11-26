@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>FinKYC - Experiment Tracking Dashboard</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>FinKYC Experiment Tracking Dashboard</h1>
+      <p class="subtitle">Track A QLoRA Fine-Tuning Runs · Parameter Ablations · 4-Way RAG Benchmarks · Held-Out Evaluations</p>
+    </div>
+    <div class="header-meta">
+      <span class="badge" id="modeBadge">Static Snapshot</span>
+      <span class="badge" id="generatedAtBadge">Loading...</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="metrics-grid" aria-label="Experiment summary metrics">
+      <div class="metric-card">
+        <div class="metric-val" id="kpiTotalRuns">-</div>
+        <div class="metric-name">Tracked Runs</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="kpiBestEm">-</div>
+        <div class="metric-name">Best Exact Match</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="kpiTrainLoss">-</div>
+        <div class="metric-name">Job-178 Final Loss</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="kpiMeanLatency">-</div>
+        <div class="metric-name">Mean Latency</div>
+      </div>
+    </section>
+
+    <section class="card" id="liveRunnerCard" hidden>
+      <div class="row-between">
+        <div>
+          <h2>Live Held-Out Experiment Runner</h2>
+          <p class="section-desc">Execute real deterministic evaluation across <code>data/processed/kyc_test.jsonl</code> and log a new tracked run.</p>
+        </div>
+        <div class="runner-controls">
+          <label for="expConfigSelect" class="visually-hidden">Configuration</label>
+          <select id="expConfigSelect"></select>
+          <label for="expLimitSelect" class="visually-hidden">Sample Count</label>
+          <select id="expLimitSelect">
+            <option value="50">50 records</option>
+            <option value="100" selected>100 records</option>
+            <option value="300">300 records</option>
+          </select>
+          <button type="button" id="runExperimentBtn" class="btn btn-primary">Run &amp; Log Experiment</button>
+        </div>
+      </div>
+      <div id="expStatusMsg" class="status-note" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="grid-2col">
+      <div class="card">
+        <h2>Exact Match &amp; Accuracy Comparison</h2>
+        <p class="section-desc">Visual comparison of Exact Match % across tracked setups and QLoRA ablation runs.</p>
+        <div id="expBarsContainer" class="bars-list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Slurm Job-178 Training Snapshot</h2>
+        <p class="section-desc">Recorded adapter training telemetry from <code>models/adapters/qwen2.5-7b-qlora/</code>.</p>
+        <dl id="job178Details" class="kv-grid"></dl>
+      </div>
+    </section>
+
+    <section class="card" id="expCompareCard" hidden>
+      <div class="row-between">
+        <div>
+          <h2>Side-by-Side Run Comparison</h2>
+          <p class="section-desc">Comparing two checked runs across hyperparameters and benchmark deltas.</p>
+        </div>
+        <button type="button" id="clearCompareBtn" class="btn btn-secondary btn-sm">Clear Selection</button>
+      </div>
+      <div id="expCompareBody" class="compare-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="row-between">
+        <div>
+          <h2>Experiment Runs Registry</h2>
+          <p class="section-desc">Select any two runs with checkboxes to inspect metric deltas side-by-side.</p>
+        </div>
+        <div class="filter-controls">
+          <label for="expSearchInput" class="visually-hidden">Filter experiments</label>
+          <input type="search" id="expSearchInput" placeholder="Search run ID, model, hyperparameter...">
+        </div>
+      </div>
+
+      <div class="exp-tabs" id="kindTablist" role="tablist" aria-label="Filter runs by category">
+        <button type="button" class="exp-tab" role="tab" aria-selected="true" data-kind="all">All Runs</button>
+        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Training Run">Training Run</button>
+        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Ablation Study">Ablations</button>
+        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="4-Way Setup">4-Way Setups</button>
+        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Held-Out Eval">Held-Out Eval</button>
+        <button type="button" class="exp-tab" role="tab" aria-selected="false" data-kind="Live Verification">Live Traces</button>
+      </div>
+
+      <div tabindex="0" role="region" aria-labelledby="expTableCaption" class="exp-table-wrapper">
+        <table class="exp-table">
+          <caption id="expTableCaption">Tracked training, ablation, 4-way benchmark, and live evaluation runs</caption>
+          <thead>
+            <tr>
+              <th>Compare</th>
+              <th>Run ID</th>
+              <th>Kind</th>
+              <th>Configuration / Setup</th>
+              <th>Hyperparameters</th>
+              <th>EM %</th>
+              <th>Doc ID %</th>
+              <th>Halluc %</th>
+              <th>Latency</th>
+              <th>Signal / Loss</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="expTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

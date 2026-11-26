@@ -139,6 +139,7 @@
   <nav class="tab-nav">
     <button class="tab-btn active" id="tabUserBtn" onclick="switchTab('user')">Verification &amp; Live Evaluation</button>
     <button class="tab-btn" id="tabBenchBtn" onclick="switchTab('bench')">Benchmarks &amp; Ablations</button>
+    <button class="tab-btn" id="tabExpBtn" onclick="switchTab('experiments')">Experiment Tracking</button>
     <button class="tab-btn" id="tabModelCardBtn" onclick="switchTab('modelcard')">Model Card &amp; Deliverables</button>
     <button class="tab-btn" id="tabAdminBtn" onclick="switchTab('admin')">Admin, Security &amp; Deployment</button>
   </nav>
@@ -412,6 +413,19 @@
             <tbody id="benchmarkTableBody"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <section id="experimentsSection" class="view-section">
+      <div class="card" style="gap: 0.75rem;">
+        <div class="rag-subsystem-box" style="margin-bottom: 0;">
+          <div>
+            <strong>GitHub Pages Experiment Tracking Dashboard</strong><br>
+            <span class="rag-subsystem-meta">Serve <code>Banking-KYC/docs/</code> directly on GitHub Pages or inspect live API telemetry below.</span>
+          </div>
+          <a href="/experiments/" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="text-decoration: none; font-size: 0.8rem; padding: 0.4rem 0.8rem;">Open Standalone Dashboard ↗</a>
+        </div>
+        <iframe id="expDashboardFrame" title="FinKYC Experiment Tracking Dashboard" src="/experiments/" class="exp-iframe"></iframe>
       </div>
     </section>
 
