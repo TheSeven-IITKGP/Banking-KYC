@@ -1,0 +1,21 @@
+{
+  "model_name": "/storage/tracka/models/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/a09a35458c702b33eeacc393d103063234e8bc28",
+  "base_architecture": "Qwen2.5-7B-Instruct",
+  "dataset_size": 1400,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "max_steps": 100,
+  "learning_rate": 0.0002,
+  "target_modules": [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
+  ],
+  "quantization": "4-bit NormalFloat (NF4)",
+  "timestamp": 1795533607.3323166,
+  "job_id": "178"
+}

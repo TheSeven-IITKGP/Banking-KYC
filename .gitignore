@@ -37,7 +37,6 @@ venv.bak/
 env/
 ENV/
 env.bak/
-models/
 
 # Unit test / coverage
 htmlcov/
